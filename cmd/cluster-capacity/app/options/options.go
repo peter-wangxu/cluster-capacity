@@ -32,31 +32,30 @@ import (
 	api "k8s.io/kubernetes/pkg/apis/core"
 	apiv1 "k8s.io/kubernetes/pkg/apis/core/v1"
 	"k8s.io/kubernetes/pkg/apis/core/validation"
-	schedapp "k8s.io/kubernetes/plugin/cmd/kube-scheduler/app"
-	"k8s.io/kubernetes/plugin/pkg/scheduler/algorithmprovider"
+	schedConfig "k8s.io/kubernetes/cmd/kube-scheduler/app/config"
+	schedOptions "k8s.io/kubernetes/cmd/kube-scheduler/app/options"
+	"k8s.io/kubernetes/pkg/scheduler/algorithmprovider"
 
 	"github.com/kubernetes-incubator/cluster-capacity/pkg/framework/store"
+	//"github.com/kubernetes-incubator/cluster-capacity/pkg/utils"
 	"github.com/kubernetes-incubator/cluster-capacity/pkg/utils"
 )
 
 type ClusterCapacityConfig struct {
-	//Schedulers       []*schedapp.SchedulerServer
-	Pod              *v1.Pod
-	KubeClient       clientset.Interface
-	Options          *ClusterCapacityOptions
-	DefaultScheduler *schedapp.SchedulerServer
-	ResourceStore    store.ResourceStore
+	Pod                    *v1.Pod
+	KubeClient             clientset.Interface
+	Options                *ClusterCapacityOptions
+	DefaultSchedulerConfig *schedConfig.CompletedConfig
+	ResourceStore          store.ResourceStore
 }
 
 type ClusterCapacityOptions struct {
-	Kubeconfig string
-	//SchedulerConfigFile        []string
+	Kubeconfig                 string
 	DefaultSchedulerConfigFile string
 	MaxLimit                   int
 	Verbose                    bool
 	PodSpecFile                string
 	OutputFormat               string
-	//ResourceSpaceMode          string
 }
 
 func NewClusterCapacityConfig(opt *ClusterCapacityOptions) *ClusterCapacityConfig {
@@ -83,36 +82,10 @@ func (s *ClusterCapacityOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVarP(&s.OutputFormat, "output", "o", s.OutputFormat, "Output format. One of: json|yaml (Note: output is not versioned or guaranteed to be stable across releases).")
 }
 
-func (s *ClusterCapacityConfig) parseSchedulerConfig(path string) (*schedapp.SchedulerServer, error) {
-	soptions, err := schedapp.NewOptions()
+func (s *ClusterCapacityConfig) parseSchedulerConfig(path string) (*schedConfig.CompletedConfig, error) {
+	soptions, err := schedOptions.NewOptions()
 	if err != nil {
 		return nil, err
-	}
-
-	err = soptions.ReallyApplyDefaults()
-	if err != nil {
-		return nil, err
-	}
-
-	soptions.ConfigFile = path
-
-	err = soptions.Complete()
-	if err != nil {
-		return nil, err
-	}
-
-	ksConfig := soptions.GetConfig()
-	ksConfig.ClientConnection.KubeConfigFile = s.Options.Kubeconfig
-
-	if len(path) > 0 {
-		filename, _ := filepath.Abs(path)
-		config, err := os.Open(filename)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to open config file: %v", err)
-		}
-
-		decoder := yaml.NewYAMLOrJSONDecoder(config, 4096)
-		decoder.Decode(ksConfig)
 	}
 
 	// In a POD, master is passed as empty string.
@@ -125,17 +98,40 @@ func (s *ClusterCapacityConfig) parseSchedulerConfig(path string) (*schedapp.Sch
 		}
 	}
 
-	// TODO(avesh): need to check if this works correctly
-	algorithmprovider.ApplyFeatureGates()
-
-	var newScheduler *schedapp.SchedulerServer
-	newScheduler, err = schedapp.NewSchedulerServer(ksConfig, master)
+	soptions.ConfigFile = path
+	soptions.Master = master
+	soptions.ComponentConfig.SchedulerName = "default-scheduler"
+	//soptions.ComponentConfig.LeaderElection.LeaderElect = false
+	soptions.ComponentConfig.ClientConnection.Kubeconfig = s.Options.Kubeconfig
+	conf, err := soptions.Config()
 	if err != nil {
 		return nil, err
 	}
 
-	newScheduler.SchedulerName = "cluster-capacity"
-	return newScheduler, nil
+	completedConf := conf.Complete()
+
+	if len(path) > 0 {
+		filename, _ := filepath.Abs(path)
+		config, err := os.Open(filename)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to open config file: %v", err)
+		}
+
+		decoder := yaml.NewYAMLOrJSONDecoder(config, 4096)
+		decoder.Decode(completedConf)
+	}
+
+	// TODO(avesh): need to check if this works correctly
+	algorithmprovider.ApplyFeatureGates()
+
+	//var newScheduler *schedapp.SchedulerServer
+	//newScheduler, err = schedapp.NewSchedulerServer(ksConfig, master)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//newScheduler.SchedulerName = "cluster-capacity"
+	return &completedConf, nil
 }
 
 // TODO (avesh): disable until support for multiple schedulers is implemented.
@@ -187,7 +183,7 @@ func (s *ClusterCapacityConfig) ParseAPISpec() error {
 
 	// set pod's scheduler name to cluster-capacity
 	if versionedPod.Spec.SchedulerName == "" {
-		versionedPod.Spec.SchedulerName = s.DefaultScheduler.SchedulerName
+		versionedPod.Spec.SchedulerName = "default-scheduler"
 	}
 
 	// hardcoded from kube api defaults and validation
@@ -225,7 +221,7 @@ func (s *ClusterCapacityConfig) ParseAPISpec() error {
 
 func (s *ClusterCapacityConfig) SetDefaultScheduler() error {
 	var err error
-	s.DefaultScheduler, err = s.parseSchedulerConfig(s.Options.DefaultSchedulerConfigFile)
+	s.DefaultSchedulerConfig, err = s.parseSchedulerConfig(s.Options.DefaultSchedulerConfigFile)
 	if err != nil {
 		return fmt.Errorf("Error in opening default scheduler config file: %v", err)
 	}

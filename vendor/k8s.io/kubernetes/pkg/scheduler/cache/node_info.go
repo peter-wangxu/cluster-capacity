@@ -17,11 +17,11 @@ limitations under the License.
 package cache
 
 import (
-	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 
+	clientcache "k8s.io/client-go/tools/cache"
 	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
@@ -628,11 +628,12 @@ func (n *NodeInfo) FilterOutPods(pods []*v1.Pod) []*v1.Pod {
 
 // getPodKey returns the string key of a pod.
 func getPodKey(pod *v1.Pod) (string, error) {
-	uid := string(pod.UID)
-	if len(uid) == 0 {
-		return "", errors.New("Cannot get cache key for pod with empty UID")
-	}
-	return uid, nil
+	//uid := string(pod.UID)
+	//if len(uid) == 0 {
+	//	return "", errors.New("Cannot get cache key for pod with empty UID")
+	//}
+	//return uid, nil
+	return clientcache.MetaNamespaceKeyFunc(pod)
 }
 
 // Filter implements PodFilter interface. It returns false only if the pod node name

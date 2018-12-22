@@ -74,7 +74,7 @@ type ClusterCapacity struct {
 	schedulers           map[string]*scheduler.Scheduler
 	schedulerConfigs     map[string]*scheduler.Config
 	defaultSchedulerName string
-
+	defaultSchedulerConf *schedConfig.CompletedConfig
 	// pod to schedule
 	simulatedPod     *v1.Pod
 	lastSimulatedPod *v1.Pod
@@ -298,7 +298,7 @@ func (c *ClusterCapacity) createScheduler(s *schedConfig.CompletedConfig) (*sche
 
 	// Replace the binder with simulator pod counter
 	lbpcu := &localBinderPodConditionUpdater{
-		SchedulerName: "default-scheduler",
+		SchedulerName: "cluster-capacity",
 		C:             c,
 	}
 	schedulerConfig.GetBinder = func(pod *v1.Pod) scheduler.Binder {
@@ -378,9 +378,10 @@ func New(completedConf *schedConfig.CompletedConfig, simulatedPod *v1.Pod, maxPo
 		return nil, err
 	}
 
-	cc.schedulers["default-scheduler"] = scheduler
-	cc.schedulerConfigs["default-scheduler"] = scheduler.Config()
-	cc.defaultSchedulerName = "default-scheduler"
+	cc.schedulers["cluster-capacity"] = scheduler
+	cc.schedulerConfigs["cluster-capacity"] = scheduler.Config()
+	cc.defaultSchedulerConf = completedConf
+	cc.defaultSchedulerName = "cluster-capacity"
 	cc.stop = make(chan struct{})
 	cc.informerStopCh = make(chan struct{})
 	return cc, nil
@@ -418,7 +419,7 @@ func SchedulerConfigLocal(s *schedConfig.CompletedConfig) (*scheduler.Config, er
 		SchedulerName:                  s.ComponentConfig.SchedulerName,
 		Client:                         s.Client,
 		NodeInformer:                   s.InformerFactory.Core().V1().Nodes(),
-		PodInformer:                    s.PodInformer,
+		PodInformer:                    s.InformerFactory.Core().V1().Pods(),
 		PvInformer:                     s.InformerFactory.Core().V1().PersistentVolumes(),
 		PvcInformer:                    s.InformerFactory.Core().V1().PersistentVolumeClaims(),
 		ReplicationControllerInformer:  fakeInformerFactory.Core().V1().ReplicationControllers(),

@@ -86,7 +86,7 @@ func NewSharedIndexInformer(lw ListerWatcher, objType runtime.Object, defaultEve
 		resyncCheckPeriod:               defaultEventHandlerResyncPeriod,
 		defaultEventHandlerResyncPeriod: defaultEventHandlerResyncPeriod,
 		cacheMutationDetector:           NewCacheMutationDetector(fmt.Sprintf("%T", objType)),
-		clock: realClock,
+		clock:                           realClock,
 	}
 	return sharedIndexInformer
 }
@@ -108,7 +108,8 @@ func WaitForCacheSync(stopCh <-chan struct{}, cacheSyncs ...InformerSynced) bool
 	err := wait.PollUntil(syncedPollPeriod,
 		func() (bool, error) {
 			for _, syncFunc := range cacheSyncs {
-				if !syncFunc() {
+				a := syncFunc()
+				if !a {
 					return false, nil
 				}
 			}

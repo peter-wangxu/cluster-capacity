@@ -100,8 +100,8 @@ func (s *ClusterCapacityConfig) parseSchedulerConfig(path string) (*schedConfig.
 
 	soptions.ConfigFile = path
 	soptions.Master = master
-	soptions.ComponentConfig.SchedulerName = "default-scheduler"
-	//soptions.ComponentConfig.LeaderElection.LeaderElect = false
+	soptions.ComponentConfig.SchedulerName = "cluster-capacity"
+	soptions.ComponentConfig.LeaderElection.LeaderElect = false
 	soptions.ComponentConfig.ClientConnection.Kubeconfig = s.Options.Kubeconfig
 	conf, err := soptions.Config()
 	if err != nil {
@@ -183,7 +183,7 @@ func (s *ClusterCapacityConfig) ParseAPISpec() error {
 
 	// set pod's scheduler name to cluster-capacity
 	if versionedPod.Spec.SchedulerName == "" {
-		versionedPod.Spec.SchedulerName = "default-scheduler"
+		versionedPod.Spec.SchedulerName = "cluster-capacity"
 	}
 
 	// hardcoded from kube api defaults and validation

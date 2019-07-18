@@ -102,6 +102,8 @@ func (s *ClusterCapacityConfig) parseSchedulerConfig(path string) (*schedConfig.
 	soptions.ComponentConfig.SchedulerName = "cluster-capacity"
 	soptions.ComponentConfig.LeaderElection.LeaderElect = false
 	soptions.ComponentConfig.ClientConnection.Kubeconfig = s.Options.Kubeconfig
+	soptions.CombinedInsecureServing = nil
+	soptions.SecureServing = nil
 	conf, err := soptions.Config()
 	if err != nil {
 		return nil, err

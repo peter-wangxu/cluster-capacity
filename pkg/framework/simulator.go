@@ -72,7 +72,7 @@ type ClusterCapacity struct {
 
 	// schedulers
 	schedulers           map[string]*scheduler.Scheduler
-	schedulerConfigs     map[string]*scheduler.Config
+	schedulerConfigs     map[string]*factory.Config
 	defaultSchedulerName string
 	defaultSchedulerConf *schedConfig.CompletedConfig
 	// pod to schedule
@@ -202,10 +202,6 @@ func (c *ClusterCapacity) Close() {
 		return
 	}
 
-	for _, name := range c.schedulerConfigs {
-		close(name.StopEverything)
-	}
-
 	close(c.informerStopCh)
 	c.closed = true
 }
@@ -301,7 +297,7 @@ func (c *ClusterCapacity) createScheduler(s *schedConfig.CompletedConfig) (*sche
 		SchedulerName: "cluster-capacity",
 		C:             c,
 	}
-	schedulerConfig.GetBinder = func(pod *v1.Pod) scheduler.Binder {
+	schedulerConfig.GetBinder = func(pod *v1.Pod) factory.Binder {
 		return lbpcu
 	}
 	schedulerConfig.PodConditionUpdater = lbpcu
@@ -371,7 +367,7 @@ func New(completedConf *schedConfig.CompletedConfig, simulatedPod *v1.Pod, maxPo
 	completedConf.Client = cc.externalkubeclient
 
 	cc.schedulers = make(map[string]*scheduler.Scheduler)
-	cc.schedulerConfigs = make(map[string]*scheduler.Config)
+	cc.schedulerConfigs = make(map[string]*factory.Config)
 
 	scheduler, err := cc.createScheduler(completedConf)
 	if err != nil {
@@ -388,7 +384,7 @@ func New(completedConf *schedConfig.CompletedConfig, simulatedPod *v1.Pod, maxPo
 }
 
 // SchedulerConfig creates the scheduler configuration.
-func SchedulerConfigLocal(s *schedConfig.CompletedConfig) (*scheduler.Config, error) {
+func SchedulerConfigLocal(s *schedConfig.CompletedConfig) (*factory.Config, error) {
 	var storageClassInformer storageinformers.StorageClassInformer
 	fakeClient := fake.NewSimpleClientset()
 	fakeInformerFactory := informers.NewSharedInformerFactory(fakeClient, 0)
@@ -436,7 +432,7 @@ func SchedulerConfigLocal(s *schedConfig.CompletedConfig) (*scheduler.Config, er
 	})
 
 	source := s.ComponentConfig.AlgorithmSource
-	var config *scheduler.Config
+	var config *factory.Config
 	switch {
 	case source.Provider != nil:
 		// Create the config from a named algorithm provider.

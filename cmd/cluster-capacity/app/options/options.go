@@ -37,7 +37,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/algorithmprovider"
 
 	"github.com/kubernetes-incubator/cluster-capacity/pkg/framework/store"
-	//"github.com/kubernetes-incubator/cluster-capacity/pkg/utils"
 	"github.com/kubernetes-incubator/cluster-capacity/pkg/utils"
 )
 

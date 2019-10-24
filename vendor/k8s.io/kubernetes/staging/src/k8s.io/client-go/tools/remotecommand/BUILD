@@ -25,7 +25,6 @@ go_library(
     srcs = [
         "doc.go",
         "errorstream.go",
-        "reader.go",
         "remotecommand.go",
         "resize.go",
         "v1.go",
@@ -44,7 +43,7 @@ go_library(
         "//staging/src/k8s.io/client-go/rest:go_default_library",
         "//staging/src/k8s.io/client-go/transport/spdy:go_default_library",
         "//staging/src/k8s.io/client-go/util/exec:go_default_library",
-        "//vendor/k8s.io/klog:go_default_library",
+        "//vendor/github.com/golang/glog:go_default_library",
     ],
 )
 

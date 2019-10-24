@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/exec"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // tcShaper provides an implementation of the BandwidthShaper interface on Linux using the 'tc' tool.
@@ -53,10 +53,10 @@ func NewTCShaper(iface string) BandwidthShaper {
 }
 
 func (t *tcShaper) execAndLog(cmdStr string, args ...string) error {
-	klog.V(6).Infof("Running: %s %s", cmdStr, strings.Join(args, " "))
+	glog.V(6).Infof("Running: %s %s", cmdStr, strings.Join(args, " "))
 	cmd := t.e.Command(cmdStr, args...)
 	out, err := cmd.CombinedOutput()
-	klog.V(6).Infof("Output from tc: %s", string(out))
+	glog.V(6).Infof("Output from tc: %s", string(out))
 	return err
 }
 
@@ -259,7 +259,7 @@ func (t *tcShaper) ReconcileInterface() error {
 		return err
 	}
 	if !exists {
-		klog.V(4).Info("Didn't find bandwidth interface, creating")
+		glog.V(4).Info("Didn't find bandwidth interface, creating")
 		return t.initializeInterface()
 	}
 	fields := strings.Split(output, " ")

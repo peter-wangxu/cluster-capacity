@@ -23,17 +23,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"k8s.io/kubernetes/test/e2e/framework/config"
 	instrumentation "k8s.io/kubernetes/test/e2e/instrumentation/common"
 
 	. "github.com/onsi/ginkgo"
 )
-
-var cadvisor struct {
-	MaxRetries    int           `default:"6"`
-	SleepDuration time.Duration `default:"10000ms"`
-}
-var _ = config.AddOptions(&cadvisor, "instrumentation.monitoring.cadvisor")
 
 var _ = instrumentation.SIGDescribe("Cadvisor", func() {
 
@@ -51,7 +44,25 @@ func CheckCadvisorHealthOnAllNodes(c clientset.Interface, timeout time.Duration)
 	framework.ExpectNoError(err)
 	var errors []error
 
-	maxRetries := cadvisor.MaxRetries
+	// returns maxRetries, sleepDuration
+	readConfig := func() (int, time.Duration) {
+		// Read in configuration settings, reasonable defaults.
+		retry := framework.TestContext.Cadvisor.MaxRetries
+		if framework.TestContext.Cadvisor.MaxRetries == 0 {
+			retry = 6
+			framework.Logf("Overriding default retry value of zero to %d", retry)
+		}
+
+		sleepDurationMS := framework.TestContext.Cadvisor.SleepDurationMS
+		if sleepDurationMS == 0 {
+			sleepDurationMS = 10000
+			framework.Logf("Overriding default milliseconds value of zero to %d", sleepDurationMS)
+		}
+
+		return retry, time.Duration(sleepDurationMS) * time.Millisecond
+	}
+
+	maxRetries, sleepDuration := readConfig()
 	for {
 		errors = []error{}
 		for _, node := range nodeList.Items {
@@ -71,7 +82,7 @@ func CheckCadvisorHealthOnAllNodes(c clientset.Interface, timeout time.Duration)
 			break
 		}
 		framework.Logf("failed to retrieve kubelet stats -\n %v", errors)
-		time.Sleep(cadvisor.SleepDuration)
+		time.Sleep(sleepDuration)
 	}
 	framework.Failf("Failed after retrying %d times for cadvisor to be healthy on all nodes. Errors:\n%v", maxRetries, errors)
 }

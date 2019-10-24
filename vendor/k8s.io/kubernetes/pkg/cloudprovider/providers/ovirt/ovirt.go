@@ -33,7 +33,8 @@ import (
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/controller"
 )
 
 const ProviderName = "ovirt"
@@ -117,8 +118,7 @@ func newOVirtCloud(config io.Reader) (*OVirtCloud, error) {
 }
 
 // Initialize passes a Kubernetes clientBuilder interface to the cloud provider
-func (v *OVirtCloud) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
-}
+func (v *OVirtCloud) Initialize(clientBuilder controller.ControllerClientBuilder) {}
 
 func (v *OVirtCloud) Clusters() (cloudprovider.Clusters, bool) {
 	return nil, false

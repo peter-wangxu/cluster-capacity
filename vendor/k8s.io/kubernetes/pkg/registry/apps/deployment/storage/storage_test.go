@@ -35,16 +35,16 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	storeerr "k8s.io/apiserver/pkg/storage/errors"
 	etcdtesting "k8s.io/apiserver/pkg/storage/etcd/testing"
-	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/autoscaling"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/registry/registrytest"
 )
 
 const defaultReplicas = 100
 
 func newStorage(t *testing.T) (*DeploymentStorage, *etcdtesting.EtcdTestServer) {
-	etcdStorage, server := registrytest.NewEtcdStorage(t, apps.GroupName)
+	etcdStorage, server := registrytest.NewEtcdStorage(t, extensions.GroupName)
 	restOptions := generic.RESTOptions{StorageConfig: etcdStorage, Decorator: generic.UndecoratedStorage, DeleteCollectionWorkers: 1, ResourcePrefix: "deployments"}
 	deploymentStorage := NewStorage(restOptions)
 	return &deploymentStorage, server
@@ -53,17 +53,17 @@ func newStorage(t *testing.T) (*DeploymentStorage, *etcdtesting.EtcdTestServer) 
 var namespace = "foo-namespace"
 var name = "foo-deployment"
 
-func validNewDeployment() *apps.Deployment {
-	return &apps.Deployment{
+func validNewDeployment() *extensions.Deployment {
+	return &extensions.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 		},
-		Spec: apps.DeploymentSpec{
+		Spec: extensions.DeploymentSpec{
 			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"a": "b"}},
-			Strategy: apps.DeploymentStrategy{
-				Type: apps.RollingUpdateDeploymentStrategyType,
-				RollingUpdate: &apps.RollingUpdateDeployment{
+			Strategy: extensions.DeploymentStrategy{
+				Type: extensions.RollingUpdateDeploymentStrategyType,
+				RollingUpdate: &extensions.RollingUpdateDeployment{
 					MaxSurge:       intstr.FromInt(1),
 					MaxUnavailable: intstr.FromInt(1),
 				},
@@ -87,7 +87,7 @@ func validNewDeployment() *apps.Deployment {
 			},
 			Replicas: 7,
 		},
-		Status: apps.DeploymentStatus{
+		Status: extensions.DeploymentStatus{
 			Replicas: 5,
 		},
 	}
@@ -106,8 +106,8 @@ func TestCreate(t *testing.T) {
 		// valid
 		deployment,
 		// invalid (invalid selector)
-		&apps.Deployment{
-			Spec: apps.DeploymentSpec{
+		&extensions.Deployment{
+			Spec: extensions.DeploymentSpec{
 				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{}},
 				Template: validDeployment.Spec.Template,
 			},
@@ -125,23 +125,23 @@ func TestUpdate(t *testing.T) {
 		validNewDeployment(),
 		// updateFunc
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*apps.Deployment)
+			object := obj.(*extensions.Deployment)
 			object.Spec.Template.Spec.NodeSelector = map[string]string{"c": "d"}
 			return object
 		},
 		// invalid updateFunc
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*apps.Deployment)
+			object := obj.(*extensions.Deployment)
 			object.Name = ""
 			return object
 		},
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*apps.Deployment)
+			object := obj.(*extensions.Deployment)
 			object.Spec.Template.Spec.RestartPolicy = api.RestartPolicyOnFailure
 			return object
 		},
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*apps.Deployment)
+			object := obj.(*extensions.Deployment)
 			object.Spec.Selector = &metav1.LabelSelector{MatchLabels: map[string]string{}}
 			return object
 		},
@@ -202,7 +202,7 @@ func TestScaleGet(t *testing.T) {
 	storage, server := newStorage(t)
 	defer server.Terminate(t)
 	defer storage.Deployment.Store.DestroyFunc()
-	var deployment apps.Deployment
+	var deployment extensions.Deployment
 	ctx := genericapirequest.WithNamespace(genericapirequest.NewContext(), namespace)
 	key := "/deployments/" + namespace + "/" + name
 	if err := storage.Deployment.Storage.Create(ctx, key, &validDeployment, &deployment, 0, false); err != nil {
@@ -243,7 +243,7 @@ func TestScaleUpdate(t *testing.T) {
 	storage, server := newStorage(t)
 	defer server.Terminate(t)
 	defer storage.Deployment.Store.DestroyFunc()
-	var deployment apps.Deployment
+	var deployment extensions.Deployment
 	ctx := genericapirequest.WithNamespace(genericapirequest.NewContext(), namespace)
 	key := "/deployments/" + namespace + "/" + name
 	if err := storage.Deployment.Storage.Create(ctx, key, &validDeployment, &deployment, 0, false); err != nil {
@@ -286,12 +286,12 @@ func TestStatusUpdate(t *testing.T) {
 	if err := storage.Deployment.Storage.Create(ctx, key, &validDeployment, nil, 0, false); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	update := apps.Deployment{
+	update := extensions.Deployment{
 		ObjectMeta: validDeployment.ObjectMeta,
-		Spec: apps.DeploymentSpec{
+		Spec: extensions.DeploymentSpec{
 			Replicas: defaultReplicas,
 		},
-		Status: apps.DeploymentStatus{
+		Status: extensions.DeploymentStatus{
 			Replicas: defaultReplicas,
 		},
 	}
@@ -304,7 +304,7 @@ func TestStatusUpdate(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	deployment := obj.(*apps.Deployment)
+	deployment := obj.(*extensions.Deployment)
 	if deployment.Spec.Replicas != 7 {
 		t.Errorf("we expected .spec.replicas to not be updated but it was updated to %v", deployment.Spec.Replicas)
 	}
@@ -317,28 +317,28 @@ func TestEtcdCreateDeploymentRollback(t *testing.T) {
 	ctx := genericapirequest.WithNamespace(genericapirequest.NewContext(), namespace)
 
 	testCases := map[string]struct {
-		rollback apps.DeploymentRollback
+		rollback extensions.DeploymentRollback
 		errOK    func(error) bool
 	}{
 		"normal": {
-			rollback: apps.DeploymentRollback{
+			rollback: extensions.DeploymentRollback{
 				Name:               name,
 				UpdatedAnnotations: map[string]string{},
-				RollbackTo:         apps.RollbackConfig{Revision: 1},
+				RollbackTo:         extensions.RollbackConfig{Revision: 1},
 			},
 			errOK: func(err error) bool { return err == nil },
 		},
 		"noAnnotation": {
-			rollback: apps.DeploymentRollback{
+			rollback: extensions.DeploymentRollback{
 				Name:       name,
-				RollbackTo: apps.RollbackConfig{Revision: 1},
+				RollbackTo: extensions.RollbackConfig{Revision: 1},
 			},
 			errOK: func(err error) bool { return err == nil },
 		},
 		"noName": {
-			rollback: apps.DeploymentRollback{
+			rollback: extensions.DeploymentRollback{
 				UpdatedAnnotations: map[string]string{},
-				RollbackTo:         apps.RollbackConfig{Revision: 1},
+				RollbackTo:         extensions.RollbackConfig{Revision: 1},
 			},
 			errOK: func(err error) bool { return err != nil },
 		},
@@ -365,8 +365,8 @@ func TestEtcdCreateDeploymentRollback(t *testing.T) {
 			d, err := storage.Deployment.Get(ctx, validNewDeployment().ObjectMeta.Name, &metav1.GetOptions{})
 			if err != nil {
 				t.Errorf("%s: unexpected error: %v", k, err)
-			} else if !reflect.DeepEqual(*d.(*apps.Deployment).Spec.RollbackTo, test.rollback.RollbackTo) {
-				t.Errorf("%s: expected: %v, got: %v", k, *d.(*apps.Deployment).Spec.RollbackTo, test.rollback.RollbackTo)
+			} else if !reflect.DeepEqual(*d.(*extensions.Deployment).Spec.RollbackTo, test.rollback.RollbackTo) {
+				t.Errorf("%s: expected: %v, got: %v", k, *d.(*extensions.Deployment).Spec.RollbackTo, test.rollback.RollbackTo)
 			}
 		}
 		storage.Deployment.Store.DestroyFunc()
@@ -383,15 +383,15 @@ func TestEtcdCreateDeploymentRollbackNoDeployment(t *testing.T) {
 	rollbackStorage := storage.Rollback
 	ctx := genericapirequest.WithNamespace(genericapirequest.NewContext(), namespace)
 
-	_, err := rollbackStorage.Create(ctx, &apps.DeploymentRollback{
+	_, err := rollbackStorage.Create(ctx, &extensions.DeploymentRollback{
 		Name:               name,
 		UpdatedAnnotations: map[string]string{},
-		RollbackTo:         apps.RollbackConfig{Revision: 1},
+		RollbackTo:         extensions.RollbackConfig{Revision: 1},
 	}, rest.ValidateAllObjectFunc, &metav1.CreateOptions{})
 	if err == nil {
 		t.Fatalf("Expected not-found-error but got nothing")
 	}
-	if !errors.IsNotFound(storeerr.InterpretGetError(err, apps.Resource("deployments"), name)) {
+	if !errors.IsNotFound(storeerr.InterpretGetError(err, extensions.Resource("deployments"), name)) {
 		t.Fatalf("Unexpected error returned: %#v", err)
 	}
 
@@ -399,7 +399,7 @@ func TestEtcdCreateDeploymentRollbackNoDeployment(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected not-found-error but got nothing")
 	}
-	if !errors.IsNotFound(storeerr.InterpretGetError(err, apps.Resource("deployments"), name)) {
+	if !errors.IsNotFound(storeerr.InterpretGetError(err, extensions.Resource("deployments"), name)) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 }

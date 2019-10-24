@@ -20,11 +20,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/kubernetes/pkg/kubectl"
+	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-	"k8s.io/kubernetes/pkg/kubectl/generate"
-	generateversioned "k8s.io/kubernetes/pkg/kubectl/generate/versioned"
 	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
-	"k8s.io/kubernetes/pkg/kubectl/util/templates"
 )
 
 var (
@@ -52,7 +51,7 @@ func NewCmdCreatePodDisruptionBudget(f cmdutil.Factory, ioStreams genericcliopti
 	}
 
 	cmd := &cobra.Command{
-		Use:                   "poddisruptionbudget NAME --selector=SELECTOR --min-available=N [--dry-run]",
+		Use: "poddisruptionbudget NAME --selector=SELECTOR --min-available=N [--dry-run]",
 		DisableFlagsInUseLine: true,
 		Aliases:               []string{"pdb"},
 		Short:                 i18n.T("Create a pod disruption budget with the specified name."),
@@ -68,7 +67,7 @@ func NewCmdCreatePodDisruptionBudget(f cmdutil.Factory, ioStreams genericcliopti
 
 	cmdutil.AddApplyAnnotationFlags(cmd)
 	cmdutil.AddValidateFlags(cmd)
-	cmdutil.AddGeneratorFlags(cmd, generateversioned.PodDisruptionBudgetV2GeneratorName)
+	cmdutil.AddGeneratorFlags(cmd, cmdutil.PodDisruptionBudgetV2GeneratorName)
 
 	cmd.Flags().String("min-available", "", i18n.T("The minimum number or percentage of available pods this budget requires."))
 	cmd.Flags().String("max-unavailable", "", i18n.T("The maximum number or percentage of unavailable pods this budget requires."))
@@ -82,16 +81,16 @@ func (o *PodDisruptionBudgetOpts) Complete(f cmdutil.Factory, cmd *cobra.Command
 		return err
 	}
 
-	var generator generate.StructuredGenerator
+	var generator kubectl.StructuredGenerator
 	switch generatorName := cmdutil.GetFlagString(cmd, "generator"); generatorName {
-	case generateversioned.PodDisruptionBudgetV1GeneratorName:
-		generator = &generateversioned.PodDisruptionBudgetV1Generator{
+	case cmdutil.PodDisruptionBudgetV1GeneratorName:
+		generator = &kubectl.PodDisruptionBudgetV1Generator{
 			Name:         name,
 			MinAvailable: cmdutil.GetFlagString(cmd, "min-available"),
 			Selector:     cmdutil.GetFlagString(cmd, "selector"),
 		}
-	case generateversioned.PodDisruptionBudgetV2GeneratorName:
-		generator = &generateversioned.PodDisruptionBudgetV2Generator{
+	case cmdutil.PodDisruptionBudgetV2GeneratorName:
+		generator = &kubectl.PodDisruptionBudgetV2Generator{
 			Name:           name,
 			MinAvailable:   cmdutil.GetFlagString(cmd, "min-available"),
 			MaxUnavailable: cmdutil.GetFlagString(cmd, "max-unavailable"),

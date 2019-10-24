@@ -20,16 +20,20 @@ import (
 	"net/http"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/genericclioptions/resource"
 	"k8s.io/client-go/rest/fake"
+	apitesting "k8s.io/kubernetes/pkg/api/testing"
 	cmdtesting "k8s.io/kubernetes/pkg/kubectl/cmd/testing"
+	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	"k8s.io/kubernetes/pkg/kubectl/scheme"
 )
 
 func TestExtraArgsFail(t *testing.T) {
-	cmdtesting.InitTestErrorHandler(t)
+	initTestErrorHandler(t)
 
 	f := cmdtesting.NewTestFactory()
 	defer f.Cleanup()
@@ -42,8 +46,8 @@ func TestExtraArgsFail(t *testing.T) {
 }
 
 func TestCreateObject(t *testing.T) {
-	cmdtesting.InitTestErrorHandler(t)
-	_, _, rc := cmdtesting.TestData()
+	initTestErrorHandler(t)
+	_, _, rc := testData()
 	rc.Items[0].Name = "redis-master-controller"
 
 	tf := cmdtesting.NewTestFactory().WithNamespace("test")
@@ -53,11 +57,11 @@ func TestCreateObject(t *testing.T) {
 
 	tf.UnstructuredClient = &fake.RESTClient{
 		GroupVersion:         schema.GroupVersion{Version: "v1"},
-		NegotiatedSerializer: resource.UnstructuredPlusDefaultContentConfig().NegotiatedSerializer,
+		NegotiatedSerializer: unstructuredSerializer,
 		Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 			switch p, m := req.URL.Path, req.Method; {
 			case p == "/namespaces/test/replicationcontrollers" && m == http.MethodPost:
-				return &http.Response{StatusCode: http.StatusCreated, Header: cmdtesting.DefaultHeader(), Body: cmdtesting.ObjBody(codec, &rc.Items[0])}, nil
+				return &http.Response{StatusCode: http.StatusCreated, Header: defaultHeader(), Body: objBody(codec, &rc.Items[0])}, nil
 			default:
 				t.Fatalf("unexpected request: %#v\n%#v", req.URL, req)
 				return nil, nil
@@ -78,8 +82,8 @@ func TestCreateObject(t *testing.T) {
 }
 
 func TestCreateMultipleObject(t *testing.T) {
-	cmdtesting.InitTestErrorHandler(t)
-	_, svc, rc := cmdtesting.TestData()
+	initTestErrorHandler(t)
+	_, svc, rc := testData()
 
 	tf := cmdtesting.NewTestFactory().WithNamespace("test")
 	defer tf.Cleanup()
@@ -88,13 +92,13 @@ func TestCreateMultipleObject(t *testing.T) {
 
 	tf.UnstructuredClient = &fake.RESTClient{
 		GroupVersion:         schema.GroupVersion{Version: "v1"},
-		NegotiatedSerializer: resource.UnstructuredPlusDefaultContentConfig().NegotiatedSerializer,
+		NegotiatedSerializer: unstructuredSerializer,
 		Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 			switch p, m := req.URL.Path, req.Method; {
 			case p == "/namespaces/test/services" && m == http.MethodPost:
-				return &http.Response{StatusCode: http.StatusCreated, Header: cmdtesting.DefaultHeader(), Body: cmdtesting.ObjBody(codec, &svc.Items[0])}, nil
+				return &http.Response{StatusCode: http.StatusCreated, Header: defaultHeader(), Body: objBody(codec, &svc.Items[0])}, nil
 			case p == "/namespaces/test/replicationcontrollers" && m == http.MethodPost:
-				return &http.Response{StatusCode: http.StatusCreated, Header: cmdtesting.DefaultHeader(), Body: cmdtesting.ObjBody(codec, &rc.Items[0])}, nil
+				return &http.Response{StatusCode: http.StatusCreated, Header: defaultHeader(), Body: objBody(codec, &rc.Items[0])}, nil
 			default:
 				t.Fatalf("unexpected request: %#v\n%#v", req.URL, req)
 				return nil, nil
@@ -116,8 +120,8 @@ func TestCreateMultipleObject(t *testing.T) {
 }
 
 func TestCreateDirectory(t *testing.T) {
-	cmdtesting.InitTestErrorHandler(t)
-	_, _, rc := cmdtesting.TestData()
+	initTestErrorHandler(t)
+	_, _, rc := testData()
 	rc.Items[0].Name = "name"
 
 	tf := cmdtesting.NewTestFactory().WithNamespace("test")
@@ -127,11 +131,11 @@ func TestCreateDirectory(t *testing.T) {
 
 	tf.UnstructuredClient = &fake.RESTClient{
 		GroupVersion:         schema.GroupVersion{Version: "v1"},
-		NegotiatedSerializer: resource.UnstructuredPlusDefaultContentConfig().NegotiatedSerializer,
+		NegotiatedSerializer: unstructuredSerializer,
 		Client: fake.CreateHTTPClient(func(req *http.Request) (*http.Response, error) {
 			switch p, m := req.URL.Path, req.Method; {
 			case p == "/namespaces/test/replicationcontrollers" && m == http.MethodPost:
-				return &http.Response{StatusCode: http.StatusCreated, Header: cmdtesting.DefaultHeader(), Body: cmdtesting.ObjBody(codec, &rc.Items[0])}, nil
+				return &http.Response{StatusCode: http.StatusCreated, Header: defaultHeader(), Body: objBody(codec, &rc.Items[0])}, nil
 			default:
 				t.Fatalf("unexpected request: %#v\n%#v", req.URL, req)
 				return nil, nil
@@ -148,4 +152,59 @@ func TestCreateDirectory(t *testing.T) {
 	if buf.String() != "replicationcontroller/name\nreplicationcontroller/name\nreplicationcontroller/name\n" {
 		t.Errorf("unexpected output: %s", buf.String())
 	}
+}
+
+var unstructuredSerializer = resource.UnstructuredPlusDefaultContentConfig().NegotiatedSerializer
+
+func initTestErrorHandler(t *testing.T) {
+	cmdutil.BehaviorOnFatal(func(str string, code int) {
+		t.Errorf("Error running command (exit code %d): %s", code, str)
+	})
+}
+
+func testData() (*corev1.PodList, *corev1.ServiceList, *corev1.ReplicationControllerList) {
+	pods := &corev1.PodList{
+		ListMeta: metav1.ListMeta{
+			ResourceVersion: "15",
+		},
+		Items: []corev1.Pod{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "test", ResourceVersion: "10"},
+				Spec:       apitesting.V1DeepEqualSafePodSpec(),
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "bar", Namespace: "test", ResourceVersion: "11"},
+				Spec:       apitesting.V1DeepEqualSafePodSpec(),
+			},
+		},
+	}
+	svc := &corev1.ServiceList{
+		ListMeta: metav1.ListMeta{
+			ResourceVersion: "16",
+		},
+		Items: []corev1.Service{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "baz", Namespace: "test", ResourceVersion: "12"},
+				Spec: corev1.ServiceSpec{
+					SessionAffinity: "None",
+					Type:            corev1.ServiceTypeClusterIP,
+				},
+			},
+		},
+	}
+	one := int32(1)
+	rc := &corev1.ReplicationControllerList{
+		ListMeta: metav1.ListMeta{
+			ResourceVersion: "17",
+		},
+		Items: []corev1.ReplicationController{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "rc1", Namespace: "test", ResourceVersion: "18"},
+				Spec: corev1.ReplicationControllerSpec{
+					Replicas: &one,
+				},
+			},
+		},
+	}
+	return pods, svc, rc
 }

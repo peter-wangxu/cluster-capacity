@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net"
 
-	"k8s.io/apiserver/pkg/storage/storagebackend"
 	apiserver "k8s.io/kubernetes/cmd/kube-apiserver/app"
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
 )
@@ -32,23 +31,21 @@ const (
 )
 
 // APIServer is a server which manages apiserver.
-type APIServer struct {
-	storageConfig storagebackend.Config
-	stopCh        chan struct{}
-}
+type APIServer struct{}
 
 // NewAPIServer creates an apiserver.
-func NewAPIServer(storageConfig storagebackend.Config) *APIServer {
-	return &APIServer{
-		storageConfig: storageConfig,
-		stopCh:        make(chan struct{}),
-	}
+func NewAPIServer() *APIServer {
+	return &APIServer{}
 }
 
 // Start starts the apiserver, returns when apiserver is ready.
 func (a *APIServer) Start() error {
 	o := options.NewServerRunOptions()
-	o.Etcd.StorageConfig = a.storageConfig
+	o.Etcd.StorageConfig.ServerList = []string{getEtcdClientURL()}
+	// TODO: Current setup of etcd in e2e-node tests doesn't support etcd v3
+	// protocol. We should migrate it to use the same infrastructure as all
+	// other tests (pkg/storage/etcd/testing).
+	o.Etcd.StorageConfig.Type = "etcd2"
 	_, ipnet, err := net.ParseCIDR(clusterIPRange)
 	if err != nil {
 		return err
@@ -59,12 +56,14 @@ func (a *APIServer) Start() error {
 	errCh := make(chan error)
 	go func() {
 		defer close(errCh)
+		stopCh := make(chan struct{})
+		defer close(stopCh)
 		completedOptions, err := apiserver.Complete(o)
 		if err != nil {
 			errCh <- fmt.Errorf("set apiserver default options error: %v", err)
 			return
 		}
-		err = apiserver.Run(completedOptions, a.stopCh)
+		err = apiserver.Run(completedOptions, stopCh)
 		if err != nil {
 			errCh <- fmt.Errorf("run apiserver error: %v", err)
 			return
@@ -81,10 +80,6 @@ func (a *APIServer) Start() error {
 // Stop stops the apiserver. Currently, there is no way to stop the apiserver.
 // The function is here only for completion.
 func (a *APIServer) Stop() error {
-	if a.stopCh != nil {
-		close(a.stopCh)
-		a.stopCh = nil
-	}
 	return nil
 }
 

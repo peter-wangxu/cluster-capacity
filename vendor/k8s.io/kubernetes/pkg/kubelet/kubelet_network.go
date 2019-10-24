@@ -19,8 +19,8 @@ package kubelet
 import (
 	"fmt"
 
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
-	"k8s.io/klog"
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 	utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
@@ -55,28 +55,26 @@ func (kl *Kubelet) providerRequiresNetworkingConfiguration() bool {
 }
 
 // updatePodCIDR updates the pod CIDR in the runtime state if it is different
-// from the current CIDR. Return true if pod CIDR is actually changed.
-func (kl *Kubelet) updatePodCIDR(cidr string) (bool, error) {
+// from the current CIDR.
+func (kl *Kubelet) updatePodCIDR(cidr string) error {
 	kl.updatePodCIDRMux.Lock()
 	defer kl.updatePodCIDRMux.Unlock()
 
 	podCIDR := kl.runtimeState.podCIDR()
 
 	if podCIDR == cidr {
-		return false, nil
+		return nil
 	}
 
 	// kubelet -> generic runtime -> runtime shim -> network plugin
 	// docker/non-cri implementations have a passthrough UpdatePodCIDR
 	if err := kl.getRuntime().UpdatePodCIDR(cidr); err != nil {
-		// If updatePodCIDR would fail, theoretically pod CIDR could not change.
-		// But it is better to be on the safe side to still return true here.
-		return true, fmt.Errorf("failed to update pod CIDR: %v", err)
+		return fmt.Errorf("failed to update pod CIDR: %v", err)
 	}
 
-	klog.Infof("Setting Pod CIDR: %v -> %v", podCIDR, cidr)
+	glog.Infof("Setting Pod CIDR: %v -> %v", podCIDR, cidr)
 	kl.runtimeState.setPodCIDR(cidr)
-	return true, nil
+	return nil
 }
 
 // GetPodDNS returns DNS settings for the pod.

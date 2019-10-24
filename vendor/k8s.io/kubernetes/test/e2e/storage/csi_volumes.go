@@ -17,22 +17,20 @@ limitations under the License.
 package storage
 
 import (
-	"context"
 	"fmt"
-	"regexp"
+	"math/rand"
+	"time"
 
 	"k8s.io/api/core/v1"
+
 	storagev1 "k8s.io/api/storage/v1"
+	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	csiv1alpha1 "k8s.io/csi-api/pkg/apis/csi/v1alpha1"
 	csiclient "k8s.io/csi-api/pkg/client/clientset/versioned"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"k8s.io/kubernetes/test/e2e/framework/podlogs"
-	"k8s.io/kubernetes/test/e2e/storage/drivers"
-	"k8s.io/kubernetes/test/e2e/storage/testpatterns"
-	"k8s.io/kubernetes/test/e2e/storage/testsuites"
 	"k8s.io/kubernetes/test/e2e/storage/utils"
 	imageutils "k8s.io/kubernetes/test/utils/image"
 
@@ -42,126 +40,97 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// List of testDrivers to be executed in below loop
-var csiTestDrivers = []func() drivers.TestDriver{
-	drivers.InitHostPathCSIDriver,
-	drivers.InitGcePDCSIDriver,
-	drivers.InitGcePDExternalCSIDriver,
-	drivers.InitHostV0PathCSIDriver,
+const (
+	csiExternalProvisionerClusterRoleName string = "system:csi-external-provisioner"
+	csiExternalAttacherClusterRoleName    string = "system:csi-external-attacher"
+	csiDriverRegistrarClusterRoleName     string = "csi-driver-registrar"
+)
+
+type csiTestDriver interface {
+	createCSIDriver()
+	cleanupCSIDriver()
+	createStorageClassTest(node v1.Node) storageClassTest
 }
 
-// List of testSuites to be executed in below loop
-var csiTestSuites = []func() testsuites.TestSuite{
-	testsuites.InitVolumesTestSuite,
-	testsuites.InitVolumeIOTestSuite,
-	testsuites.InitVolumeModeTestSuite,
-	testsuites.InitSubPathTestSuite,
-	testsuites.InitProvisioningTestSuite,
+var csiTestDrivers = map[string]func(f *framework.Framework, config framework.VolumeTestConfig) csiTestDriver{
+	"hostPath": initCSIHostpath,
+	"gcePD":    initCSIgcePD,
 }
 
-func csiTunePattern(patterns []testpatterns.TestPattern) []testpatterns.TestPattern {
-	tunedPatterns := []testpatterns.TestPattern{}
-
-	for _, pattern := range patterns {
-		// Skip inline volume and pre-provsioned PV tests for csi drivers
-		if pattern.VolType == testpatterns.InlineVolume || pattern.VolType == testpatterns.PreprovisionedPV {
-			continue
-		}
-		tunedPatterns = append(tunedPatterns, pattern)
-	}
-
-	return tunedPatterns
-}
-
-// This executes testSuites for csi volumes.
-var _ = utils.SIGDescribe("CSI Volumes", func() {
-	f := framework.NewDefaultFramework("csi-volumes")
+var _ = utils.SIGDescribe("[Serial] CSI Volumes", func() {
+	f := framework.NewDefaultFramework("csi-mock-plugin")
 
 	var (
-		cancel context.CancelFunc
-		cs     clientset.Interface
-		ns     *v1.Namespace
-		config framework.VolumeTestConfig
+		cs        clientset.Interface
+		crdclient apiextensionsclient.Interface
+		csics     csiclient.Interface
+		ns        *v1.Namespace
+		node      v1.Node
+		config    framework.VolumeTestConfig
 	)
 
 	BeforeEach(func() {
-		ctx, c := context.WithCancel(context.Background())
-		cancel = c
 		cs = f.ClientSet
+		crdclient = f.APIExtensionsClientSet
+		csics = f.CSIClientSet
 		ns = f.Namespace
+		nodes := framework.GetReadySchedulableNodesOrDie(f.ClientSet)
+		node = nodes.Items[rand.Intn(len(nodes.Items))]
 		config = framework.VolumeTestConfig{
-			Namespace: ns.Name,
-			Prefix:    "csi",
+			Namespace:         ns.Name,
+			Prefix:            "csi",
+			ClientNodeName:    node.Name,
+			ServerNodeName:    node.Name,
+			WaitForCompletion: true,
 		}
-		// Debugging of the following tests heavily depends on the log output
-		// of the different containers. Therefore include all of that in log
-		// files (when using --report-dir, as in the CI) or the output stream
-		// (otherwise).
-		to := podlogs.LogOutput{
-			StatusWriter: GinkgoWriter,
-		}
-		if framework.TestContext.ReportDir == "" {
-			to.LogWriter = GinkgoWriter
-		} else {
-			test := CurrentGinkgoTestDescription()
-			reg := regexp.MustCompile("[^a-zA-Z0-9_-]+")
-			// We end the prefix with a slash to ensure that all logs
-			// end up in a directory named after the current test.
-			to.LogPathPrefix = framework.TestContext.ReportDir + "/" +
-				reg.ReplaceAllString(test.FullTestText, "_") + "/"
-		}
-		podlogs.CopyAllLogs(ctx, cs, ns.Name, to)
-
-		// pod events are something that the framework already collects itself
-		// after a failed test. Logging them live is only useful for interactive
-		// debugging, not when we collect reports.
-		if framework.TestContext.ReportDir == "" {
-			podlogs.WatchPods(ctx, cs, ns.Name, GinkgoWriter)
-		}
+		csiDriverRegistrarClusterRole(config)
+		createCSICRDs(crdclient)
 	})
 
 	AfterEach(func() {
-		cancel()
+		deleteCSICRDs(crdclient)
 	})
 
-	for _, initDriver := range csiTestDrivers {
-		curDriver := initDriver()
-		Context(drivers.GetDriverNameWithFeatureTags(curDriver), func() {
-			driver := curDriver
+	for driverName, initCSIDriver := range csiTestDrivers {
+		curDriverName := driverName
+		curInitCSIDriver := initCSIDriver
+
+		Context(fmt.Sprintf("CSI plugin test using CSI driver: %s [Serial]", curDriverName), func() {
+			var (
+				driver csiTestDriver
+			)
 
 			BeforeEach(func() {
-				// setupDriver
-				drivers.SetCommonDriverParameters(driver, f, config)
-				driver.CreateDriver()
+				driver = curInitCSIDriver(f, config)
+				driver.createCSIDriver()
 			})
 
 			AfterEach(func() {
-				// Cleanup driver
-				driver.CleanupDriver()
+				driver.cleanupCSIDriver()
 			})
 
-			testsuites.RunTestSuite(f, config, driver, csiTestSuites, csiTunePattern)
+			It("should provision storage", func() {
+				t := driver.createStorageClassTest(node)
+				claim := newClaim(t, ns.GetName(), "")
+				class := newStorageClass(t, ns.GetName(), "")
+				claim.Spec.StorageClassName = &class.ObjectMeta.Name
+				testDynamicProvisioning(t, cs, claim, class)
+			})
 		})
 	}
 
-	// The CSIDriverRegistry feature gate is needed for this test in Kubernetes 1.12.
-	Context("CSI attach test using HostPath driver [Feature:CSIDriverRegistry]", func() {
+	// Use [Serial], because there can be only one CSIDriver for csi-hostpath driver.
+	Context("CSI attach test using HostPath driver [Serial][Feature:CSISkipAttach]", func() {
 		var (
-			cs     clientset.Interface
-			csics  csiclient.Interface
-			driver drivers.TestDriver
+			driver csiTestDriver
 		)
-
 		BeforeEach(func() {
-			cs = f.ClientSet
-			csics = f.CSIClientSet
-			driver = drivers.InitHostPathCSIDriver()
-			drivers.SetCommonDriverParameters(driver, f, config)
-			driver.CreateDriver()
+			driver = initCSIHostpath(f, config)
+			driver.createCSIDriver()
 		})
 
 		AfterEach(func() {
-			driver.CleanupDriver()
+			driver.cleanupCSIDriver()
 		})
 
 		tests := []struct {
@@ -193,27 +162,15 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 			test := t
 			It(test.name, func() {
 				if test.driverExists {
-					csiDriver := createCSIDriver(csics, drivers.GetUniqueDriverName(driver), test.driverAttachable)
-					if csiDriver != nil {
-						defer csics.CsiV1alpha1().CSIDrivers().Delete(csiDriver.Name, nil)
+					driver := createCSIDriver(csics, test.driverAttachable)
+					if driver != nil {
+						defer csics.CsiV1alpha1().CSIDrivers().Delete(driver.Name, nil)
 					}
 				}
 
 				By("Creating pod")
-				var sc *storagev1.StorageClass
-				if dDriver, ok := driver.(drivers.DynamicPVTestDriver); ok {
-					sc = dDriver.GetDynamicProvisionStorageClass("")
-				}
-				nodeName := driver.GetDriverInfo().Config.ClientNodeName
-				scTest := testsuites.StorageClassTest{
-					Name:         driver.GetDriverInfo().Name,
-					Provisioner:  sc.Provisioner,
-					Parameters:   sc.Parameters,
-					ClaimSize:    "1Gi",
-					ExpectedSize: "1Gi",
-					NodeName:     nodeName,
-				}
-				class, claim, pod := startPausePod(cs, scTest, ns.Name)
+				t := driver.createStorageClassTest(node)
+				class, claim, pod := startPausePod(cs, t, ns.Name)
 				if class != nil {
 					defer cs.StorageV1().StorageClasses().Delete(class.Name, nil)
 				}
@@ -234,7 +191,7 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 				By("Checking if VolumeAttachment was created for the pod")
 				// Check that VolumeAttachment does not exist
 				handle := getVolumeHandle(cs, claim)
-				attachmentHash := sha256.Sum256([]byte(fmt.Sprintf("%s%s%s", handle, scTest.Provisioner, nodeName)))
+				attachmentHash := sha256.Sum256([]byte(fmt.Sprintf("%s%s%s", handle, t.provisioner, node.Name)))
 				attachmentName := fmt.Sprintf("csi-%x", attachmentHash)
 				_, err = cs.StorageV1beta1().VolumeAttachments().Get(attachmentName, metav1.GetOptions{})
 				if err != nil {
@@ -254,11 +211,11 @@ var _ = utils.SIGDescribe("CSI Volumes", func() {
 	})
 })
 
-func createCSIDriver(csics csiclient.Interface, name string, attachable bool) *csiv1alpha1.CSIDriver {
+func createCSIDriver(csics csiclient.Interface, attachable bool) *csiv1alpha1.CSIDriver {
 	By("Creating CSIDriver instance")
 	driver := &csiv1alpha1.CSIDriver{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name: "csi-hostpath",
 		},
 		Spec: csiv1alpha1.CSIDriverSpec{
 			AttachRequired: &attachable,
@@ -270,7 +227,7 @@ func createCSIDriver(csics csiclient.Interface, name string, attachable bool) *c
 }
 
 func getVolumeHandle(cs clientset.Interface, claim *v1.PersistentVolumeClaim) string {
-	// re-get the claim to the latest state with bound volume
+	// re-get the claim to the the latest state with bound volume
 	claim, err := cs.CoreV1().PersistentVolumeClaims(claim.Namespace).Get(claim.Name, metav1.GetOptions{})
 	if err != nil {
 		framework.ExpectNoError(err, "Cannot get PVC")
@@ -289,7 +246,7 @@ func getVolumeHandle(cs clientset.Interface, claim *v1.PersistentVolumeClaim) st
 	return pv.Spec.CSI.VolumeHandle
 }
 
-func startPausePod(cs clientset.Interface, t testsuites.StorageClassTest, ns string) (*storagev1.StorageClass, *v1.PersistentVolumeClaim, *v1.Pod) {
+func startPausePod(cs clientset.Interface, t storageClassTest, ns string) (*storagev1.StorageClass, *v1.PersistentVolumeClaim, *v1.Pod) {
 	class := newStorageClass(t, ns, "")
 	class, err := cs.StorageV1().StorageClasses().Create(class)
 	framework.ExpectNoError(err, "Failed to create class : %v", err)
@@ -330,10 +287,133 @@ func startPausePod(cs clientset.Interface, t testsuites.StorageClassTest, ns str
 		},
 	}
 
-	if len(t.NodeName) != 0 {
-		pod.Spec.NodeName = t.NodeName
+	if len(t.nodeName) != 0 {
+		pod.Spec.NodeName = t.nodeName
 	}
 	pod, err = cs.CoreV1().Pods(ns).Create(pod)
 	framework.ExpectNoError(err, "Failed to create pod: %v", err)
 	return class, claim, pod
+}
+
+type hostpathCSIDriver struct {
+	combinedClusterRoleNames []string
+	serviceAccount           *v1.ServiceAccount
+
+	f      *framework.Framework
+	config framework.VolumeTestConfig
+}
+
+func initCSIHostpath(f *framework.Framework, config framework.VolumeTestConfig) csiTestDriver {
+	return &hostpathCSIDriver{
+		combinedClusterRoleNames: []string{
+			csiExternalAttacherClusterRoleName,
+			csiExternalProvisionerClusterRoleName,
+			csiDriverRegistrarClusterRoleName,
+		},
+		f:      f,
+		config: config,
+	}
+}
+
+func (h *hostpathCSIDriver) createStorageClassTest(node v1.Node) storageClassTest {
+	return storageClassTest{
+		name:         "csi-hostpath",
+		provisioner:  "csi-hostpath",
+		parameters:   map[string]string{},
+		claimSize:    "1Gi",
+		expectedSize: "1Gi",
+		nodeName:     node.Name,
+	}
+}
+
+func (h *hostpathCSIDriver) createCSIDriver() {
+	By("deploying csi hostpath driver")
+	f := h.f
+	cs := f.ClientSet
+	config := h.config
+	h.serviceAccount = csiServiceAccount(cs, config, "hostpath", false)
+	csiClusterRoleBindings(cs, config, false, h.serviceAccount, h.combinedClusterRoleNames)
+	csiHostPathPod(cs, config, false, f, h.serviceAccount)
+}
+
+func (h *hostpathCSIDriver) cleanupCSIDriver() {
+	By("uninstalling csi hostpath driver")
+	f := h.f
+	cs := f.ClientSet
+	config := h.config
+	csiHostPathPod(cs, config, true, f, h.serviceAccount)
+	csiClusterRoleBindings(cs, config, true, h.serviceAccount, h.combinedClusterRoleNames)
+	csiServiceAccount(cs, config, "hostpath", true)
+}
+
+type gcePDCSIDriver struct {
+	controllerClusterRoles   []string
+	nodeClusterRoles         []string
+	controllerServiceAccount *v1.ServiceAccount
+	nodeServiceAccount       *v1.ServiceAccount
+
+	f      *framework.Framework
+	config framework.VolumeTestConfig
+}
+
+func initCSIgcePD(f *framework.Framework, config framework.VolumeTestConfig) csiTestDriver {
+	cs := f.ClientSet
+	framework.SkipUnlessProviderIs("gce", "gke")
+	framework.SkipIfMultizone(cs)
+
+	// TODO(#62561): Use credentials through external pod identity when that goes GA instead of downloading keys.
+	createGCESecrets(cs, config)
+
+	framework.SkipUnlessSecretExistsAfterWait(cs, "cloud-sa", config.Namespace, 3*time.Minute)
+
+	return &gcePDCSIDriver{
+		nodeClusterRoles: []string{
+			csiDriverRegistrarClusterRoleName,
+		},
+		controllerClusterRoles: []string{
+			csiExternalAttacherClusterRoleName,
+			csiExternalProvisionerClusterRoleName,
+		},
+		f:      f,
+		config: config,
+	}
+}
+
+func (g *gcePDCSIDriver) createStorageClassTest(node v1.Node) storageClassTest {
+	return storageClassTest{
+		name:         "com.google.csi.gcepd",
+		provisioner:  "com.google.csi.gcepd",
+		parameters:   map[string]string{"type": "pd-standard"},
+		claimSize:    "5Gi",
+		expectedSize: "5Gi",
+		nodeName:     node.Name,
+	}
+}
+
+func (g *gcePDCSIDriver) createCSIDriver() {
+	By("deploying gce-pd driver")
+	f := g.f
+	cs := f.ClientSet
+	config := g.config
+	g.controllerServiceAccount = csiServiceAccount(cs, config, "gce-controller", false /* teardown */)
+	g.nodeServiceAccount = csiServiceAccount(cs, config, "gce-node", false /* teardown */)
+	csiClusterRoleBindings(cs, config, false /* teardown */, g.controllerServiceAccount, g.controllerClusterRoles)
+	csiClusterRoleBindings(cs, config, false /* teardown */, g.nodeServiceAccount, g.nodeClusterRoles)
+	utils.PrivilegedTestPSPClusterRoleBinding(cs, config.Namespace,
+		false /* teardown */, []string{g.controllerServiceAccount.Name, g.nodeServiceAccount.Name})
+	deployGCEPDCSIDriver(cs, config, false /* teardown */, f, g.nodeServiceAccount, g.controllerServiceAccount)
+}
+
+func (g *gcePDCSIDriver) cleanupCSIDriver() {
+	By("uninstalling gce-pd driver")
+	f := g.f
+	cs := f.ClientSet
+	config := g.config
+	deployGCEPDCSIDriver(cs, config, true /* teardown */, f, g.nodeServiceAccount, g.controllerServiceAccount)
+	csiClusterRoleBindings(cs, config, true /* teardown */, g.controllerServiceAccount, g.controllerClusterRoles)
+	csiClusterRoleBindings(cs, config, true /* teardown */, g.nodeServiceAccount, g.nodeClusterRoles)
+	utils.PrivilegedTestPSPClusterRoleBinding(cs, config.Namespace,
+		true /* teardown */, []string{g.controllerServiceAccount.Name, g.nodeServiceAccount.Name})
+	csiServiceAccount(cs, config, "gce-controller", true /* teardown */)
+	csiServiceAccount(cs, config, "gce-node", true /* teardown */)
 }

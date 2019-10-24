@@ -27,7 +27,7 @@ import (
 	"k8s.io/kubernetes/pkg/master/ports"
 	"k8s.io/kubernetes/pkg/util/system"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 const (
@@ -62,7 +62,7 @@ func NewMetricsGrabber(c clientset.Interface, ec clientset.Interface, kubelets b
 		return nil, err
 	}
 	if len(nodeList.Items) < 1 {
-		klog.Warning("Can't find any Nodes in the API server to grab metrics from")
+		glog.Warning("Can't find any Nodes in the API server to grab metrics from")
 	}
 	for _, node := range nodeList.Items {
 		if system.IsMasterNode(node.Name) {
@@ -76,9 +76,9 @@ func NewMetricsGrabber(c clientset.Interface, ec clientset.Interface, kubelets b
 		controllers = false
 		clusterAutoscaler = ec != nil
 		if clusterAutoscaler {
-			klog.Warningf("Master node is not registered. Grabbing metrics from Scheduler, ControllerManager is disabled.")
+			glog.Warningf("Master node is not registered. Grabbing metrics from Scheduler, ControllerManager is disabled.")
 		} else {
-			klog.Warningf("Master node is not registered. Grabbing metrics from Scheduler, ControllerManager and ClusterAutoscaler is disabled.")
+			glog.Warningf("Master node is not registered. Grabbing metrics from Scheduler, ControllerManager and ClusterAutoscaler is disabled.")
 		}
 	}
 
@@ -127,7 +127,7 @@ func (g *MetricsGrabber) GrabFromScheduler() (SchedulerMetrics, error) {
 	if !g.registeredMaster {
 		return SchedulerMetrics{}, fmt.Errorf("Master's Kubelet is not registered. Skipping Scheduler's metrics gathering.")
 	}
-	output, err := g.getMetricsFromPod(g.client, fmt.Sprintf("%v-%v", "kube-scheduler", g.masterName), metav1.NamespaceSystem, ports.InsecureSchedulerPort)
+	output, err := g.getMetricsFromPod(g.client, fmt.Sprintf("%v-%v", "kube-scheduler", g.masterName), metav1.NamespaceSystem, ports.SchedulerPort)
 	if err != nil {
 		return SchedulerMetrics{}, err
 	}

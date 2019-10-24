@@ -26,11 +26,11 @@ import (
 	"time"
 
 	godbus "github.com/godbus/dbus"
+	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/sets"
-	utilversion "k8s.io/apimachinery/pkg/util/version"
 	utiltrace "k8s.io/apiserver/pkg/util/trace"
-	"k8s.io/klog"
 	utildbus "k8s.io/kubernetes/pkg/util/dbus"
+	utilversion "k8s.io/kubernetes/pkg/util/version"
 	utilexec "k8s.io/utils/exec"
 )
 
@@ -152,7 +152,7 @@ type runner struct {
 func newInternal(exec utilexec.Interface, dbus utildbus.Interface, protocol Protocol, lockfilePath string) Interface {
 	vstring, err := getIPTablesVersionString(exec, protocol)
 	if err != nil {
-		klog.Warningf("Error checking iptables version, assuming version at least %s: %v", MinCheckVersion, err)
+		glog.Warningf("Error checking iptables version, assuming version at least %s: %v", MinCheckVersion, err)
 		vstring = MinCheckVersion
 	}
 
@@ -197,7 +197,7 @@ const (
 func (runner *runner) connectToFirewallD() {
 	bus, err := runner.dbus.SystemBus()
 	if err != nil {
-		klog.V(1).Infof("Could not connect to D-Bus system bus: %s", err)
+		glog.V(1).Infof("Could not connect to D-Bus system bus: %s", err)
 		return
 	}
 	runner.hasListener = true
@@ -324,7 +324,7 @@ func (runner *runner) SaveInto(table Table, buffer *bytes.Buffer) error {
 	// run and return
 	iptablesSaveCmd := iptablesSaveCommand(runner.protocol)
 	args := []string{"-t", string(table)}
-	klog.V(4).Infof("running %s %v", iptablesSaveCmd, args)
+	glog.V(4).Infof("running %s %v", iptablesSaveCmd, args)
 	cmd := runner.exec.Command(iptablesSaveCmd, args...)
 	// Since CombinedOutput() doesn't support redirecting it to a buffer,
 	// we need to workaround it by redirecting stdout and stderr to buffer
@@ -380,7 +380,7 @@ func (runner *runner) restoreInternal(args []string, data []byte, flush FlushFla
 		trace.Step("Locks grabbed")
 		defer func(locker iptablesLocker) {
 			if err := locker.Close(); err != nil {
-				klog.Errorf("Failed to close iptables locks: %v", err)
+				glog.Errorf("Failed to close iptables locks: %v", err)
 			}
 		}(locker)
 	}
@@ -388,7 +388,7 @@ func (runner *runner) restoreInternal(args []string, data []byte, flush FlushFla
 	// run the command and return the output or an error including the output and error
 	fullArgs := append(runner.restoreWaitFlag, args...)
 	iptablesRestoreCmd := iptablesRestoreCommand(runner.protocol)
-	klog.V(4).Infof("running %s %v", iptablesRestoreCmd, fullArgs)
+	glog.V(4).Infof("running %s %v", iptablesRestoreCmd, fullArgs)
 	cmd := runner.exec.Command(iptablesRestoreCmd, fullArgs...)
 	cmd.SetStdin(bytes.NewBuffer(data))
 	b, err := cmd.CombinedOutput()
@@ -430,7 +430,7 @@ func (runner *runner) runContext(ctx context.Context, op operation, args []strin
 	iptablesCmd := iptablesCommand(runner.protocol)
 	fullArgs := append(runner.waitFlag, string(op))
 	fullArgs = append(fullArgs, args...)
-	klog.V(5).Infof("running iptables %s %v", string(op), args)
+	glog.V(5).Infof("running iptables %s %v", string(op), args)
 	if ctx == nil {
 		return runner.exec.Command(iptablesCmd, fullArgs...).CombinedOutput()
 	}
@@ -458,7 +458,7 @@ func trimhex(s string) string {
 // of hack and half-measures.  We should nix this ASAP.
 func (runner *runner) checkRuleWithoutCheck(table Table, chain Chain, args ...string) (bool, error) {
 	iptablesSaveCmd := iptablesSaveCommand(runner.protocol)
-	klog.V(1).Infof("running %s -t %s", iptablesSaveCmd, string(table))
+	glog.V(1).Infof("running %s -t %s", iptablesSaveCmd, string(table))
 	out, err := runner.exec.Command(iptablesSaveCmd, "-t", string(table)).CombinedOutput()
 	if err != nil {
 		return false, fmt.Errorf("error checking rule: %v", err)
@@ -497,7 +497,7 @@ func (runner *runner) checkRuleWithoutCheck(table Table, chain Chain, args ...st
 		if sets.NewString(fields...).IsSuperset(argset) {
 			return true, nil
 		}
-		klog.V(5).Infof("DBG: fields is not a superset of args: fields=%v  args=%v", fields, args)
+		glog.V(5).Infof("DBG: fields is not a superset of args: fields=%v  args=%v", fields, args)
 	}
 
 	return false, nil
@@ -544,12 +544,12 @@ func makeFullArgs(table Table, chain Chain, args ...string) []string {
 func getIPTablesHasCheckCommand(vstring string) bool {
 	minVersion, err := utilversion.ParseGeneric(MinCheckVersion)
 	if err != nil {
-		klog.Errorf("MinCheckVersion (%s) is not a valid version string: %v", MinCheckVersion, err)
+		glog.Errorf("MinCheckVersion (%s) is not a valid version string: %v", MinCheckVersion, err)
 		return true
 	}
 	version, err := utilversion.ParseGeneric(vstring)
 	if err != nil {
-		klog.Errorf("vstring (%s) is not a valid version string: %v", vstring, err)
+		glog.Errorf("vstring (%s) is not a valid version string: %v", vstring, err)
 		return true
 	}
 	return version.AtLeast(minVersion)
@@ -559,13 +559,13 @@ func getIPTablesHasCheckCommand(vstring string) bool {
 func getIPTablesWaitFlag(vstring string) []string {
 	version, err := utilversion.ParseGeneric(vstring)
 	if err != nil {
-		klog.Errorf("vstring (%s) is not a valid version string: %v", vstring, err)
+		glog.Errorf("vstring (%s) is not a valid version string: %v", vstring, err)
 		return nil
 	}
 
 	minVersion, err := utilversion.ParseGeneric(WaitMinVersion)
 	if err != nil {
-		klog.Errorf("WaitMinVersion (%s) is not a valid version string: %v", WaitMinVersion, err)
+		glog.Errorf("WaitMinVersion (%s) is not a valid version string: %v", WaitMinVersion, err)
 		return nil
 	}
 	if version.LessThan(minVersion) {
@@ -574,7 +574,7 @@ func getIPTablesWaitFlag(vstring string) []string {
 
 	minVersion, err = utilversion.ParseGeneric(WaitSecondsMinVersion)
 	if err != nil {
-		klog.Errorf("WaitSecondsMinVersion (%s) is not a valid version string: %v", WaitSecondsMinVersion, err)
+		glog.Errorf("WaitSecondsMinVersion (%s) is not a valid version string: %v", WaitSecondsMinVersion, err)
 		return nil
 	}
 	if version.LessThan(minVersion) {
@@ -608,11 +608,11 @@ func getIPTablesVersionString(exec utilexec.Interface, protocol Protocol) (strin
 func getIPTablesRestoreWaitFlag(exec utilexec.Interface, protocol Protocol) []string {
 	vstring, err := getIPTablesRestoreVersionString(exec, protocol)
 	if err != nil || vstring == "" {
-		klog.V(3).Infof("couldn't get iptables-restore version; assuming it doesn't support --wait")
+		glog.V(3).Infof("couldn't get iptables-restore version; assuming it doesn't support --wait")
 		return nil
 	}
 	if _, err := utilversion.ParseGeneric(vstring); err != nil {
-		klog.V(3).Infof("couldn't parse iptables-restore version; assuming it doesn't support --wait")
+		glog.V(3).Infof("couldn't parse iptables-restore version; assuming it doesn't support --wait")
 		return nil
 	}
 
@@ -691,7 +691,7 @@ func (runner *runner) AddReloadFunc(reloadFunc func()) {
 
 // runs all reload funcs to re-sync iptables rules
 func (runner *runner) reload() {
-	klog.V(1).Infof("reloading iptables rules")
+	glog.V(1).Infof("reloading iptables rules")
 
 	for _, f := range runner.reloadFuncs {
 		f()

@@ -24,7 +24,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pkg/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -55,17 +54,12 @@ func enforceRequirements(flags *applyPlanFlags, dryRun bool, newK8sVersion strin
 
 	client, err := getClient(flags.kubeConfigPath, dryRun)
 	if err != nil {
-		return nil, errors.Wrapf(err, "couldn't create a Kubernetes client from file %q", flags.kubeConfigPath)
-	}
-
-	// Check if the cluster is self-hosted
-	if upgrade.IsControlPlaneSelfHosted(client) {
-		return nil, errors.Errorf("cannot upgrade a self-hosted control plane")
+		return nil, fmt.Errorf("couldn't create a Kubernetes client from file %q: %v", flags.kubeConfigPath, err)
 	}
 
 	// Run healthchecks against the cluster
 	if err := upgrade.CheckClusterHealth(client, flags.ignorePreflightErrorsSet); err != nil {
-		return nil, errors.Wrap(err, "[upgrade/health] FATAL")
+		return nil, fmt.Errorf("[upgrade/health] FATAL: %v", err)
 	}
 
 	// Fetch the configuration from a file or ConfigMap and validate it
@@ -73,7 +67,7 @@ func enforceRequirements(flags *applyPlanFlags, dryRun bool, newK8sVersion strin
 	cfg, err := configutil.FetchConfigFromFileOrCluster(client, os.Stdout, "upgrade/config", flags.cfgPath, false)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			fmt.Printf("[upgrade/config] In order to upgrade, a ConfigMap called %q in the %s namespace must exist.\n", constants.KubeadmConfigConfigMap, metav1.NamespaceSystem)
+			fmt.Printf("[upgrade/config] In order to upgrade, a ConfigMap called %q in the %s namespace must exist.\n", constants.InitConfigurationConfigMap, metav1.NamespaceSystem)
 			fmt.Println("[upgrade/config] Without this information, 'kubeadm upgrade' won't know how to configure your upgraded cluster.")
 			fmt.Println("")
 			fmt.Println("[upgrade/config] Next steps:")
@@ -81,9 +75,9 @@ func enforceRequirements(flags *applyPlanFlags, dryRun bool, newK8sVersion strin
 			fmt.Printf("\t- OPTION 2: Run 'kubeadm config upload from-file' and specify the same config file you passed to 'kubeadm init' when you created your master.\n")
 			fmt.Printf("\t- OPTION 3: Pass a config file to 'kubeadm upgrade' using the --config flag.\n")
 			fmt.Println("")
-			err = errors.Errorf("the ConfigMap %q in the %s namespace used for getting configuration information was not found", constants.KubeadmConfigConfigMap, metav1.NamespaceSystem)
+			err = fmt.Errorf("the ConfigMap %q in the %s namespace used for getting configuration information was not found", constants.InitConfigurationConfigMap, metav1.NamespaceSystem)
 		}
-		return nil, errors.Wrap(err, "[upgrade/config] FATAL")
+		return nil, fmt.Errorf("[upgrade/config] FATAL: %v", err)
 	}
 
 	// If a new k8s version should be set, apply the change before printing the config
@@ -95,7 +89,7 @@ func enforceRequirements(flags *applyPlanFlags, dryRun bool, newK8sVersion strin
 	if flags.featureGatesString != "" {
 		cfg.FeatureGates, err = features.NewFeatureGate(&features.InitFeatureGates, flags.featureGatesString)
 		if err != nil {
-			return nil, errors.Wrap(err, "[upgrade/config] FATAL")
+			return nil, fmt.Errorf("[upgrade/config] FATAL: %v", err)
 		}
 	}
 
@@ -104,7 +98,7 @@ func enforceRequirements(flags *applyPlanFlags, dryRun bool, newK8sVersion strin
 		for _, m := range msg {
 			fmt.Printf("[upgrade/config] %s\n", m)
 		}
-		return nil, errors.New("[upgrade/config] FATAL. Unable to upgrade a cluster using deprecated feature-gate flags. Please see the release notes")
+		return nil, fmt.Errorf("[upgrade/config] FATAL. Unable to upgrade a cluster using deprecated feature-gate flags. Please see the release notes")
 	}
 
 	// If the user told us to print this information out; do it!
@@ -159,7 +153,7 @@ func getClient(file string, dryRun bool) (clientset.Interface, error) {
 		// API Server's version
 		realServerVersion, err := dryRunGetter.Client().Discovery().ServerVersion()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to get server version")
+			return nil, fmt.Errorf("failed to get server version: %v", err)
 		}
 
 		// Get the fake clientset
@@ -171,7 +165,7 @@ func getClient(file string, dryRun bool) (clientset.Interface, error) {
 		// we can convert it to that struct.
 		fakeclientDiscovery, ok := fakeclient.Discovery().(*fakediscovery.FakeDiscovery)
 		if !ok {
-			return nil, errors.New("couldn't set fake discovery's server version")
+			return nil, fmt.Errorf("couldn't set fake discovery's server version")
 		}
 		// Lastly, set the right server version to be used
 		fakeclientDiscovery.FakedServerVersion = realServerVersion
@@ -197,12 +191,12 @@ func InteractivelyConfirmUpgrade(question string) error {
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	if err := scanner.Err(); err != nil {
-		return errors.Wrap(err, "couldn't read from standard input")
+		return fmt.Errorf("couldn't read from standard input: %v", err)
 	}
 	answer := scanner.Text()
 	if strings.ToLower(answer) == "y" || strings.ToLower(answer) == "yes" {
 		return nil
 	}
 
-	return errors.New("won't proceed; the user didn't answer (Y|y) in order to continue")
+	return fmt.Errorf("won't proceed; the user didn't answer (Y|y) in order to continue")
 }

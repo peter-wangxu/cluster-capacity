@@ -7,6 +7,7 @@ go_library(
     importpath = "k8s.io/apiserver/pkg/util/openapi",
     visibility = ["//visibility:public"],
     deps = [
+        "//staging/src/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
         "//vendor/github.com/go-openapi/spec:go_default_library",
         "//vendor/github.com/googleapis/gnostic/OpenAPIv2:go_default_library",
         "//vendor/github.com/googleapis/gnostic/compiler:go_default_library",
@@ -34,6 +35,7 @@ go_test(
     srcs = ["proto_test.go"],
     embed = [":go_default_library"],
     deps = [
+        "//staging/src/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
         "//vendor/github.com/go-openapi/spec:go_default_library",
         "//vendor/k8s.io/kube-openapi/pkg/util/proto:go_default_library",
     ],

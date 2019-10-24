@@ -25,6 +25,7 @@ import (
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -103,8 +104,8 @@ func NewStorage(optsGetter generic.RESTOptionsGetter, kubeletClientConfig client
 	proxyREST := &noderest.ProxyREST{Store: store, ProxyTransport: proxyTransport}
 
 	// Build a NodeGetter that looks up nodes using the REST handler
-	nodeGetter := client.NodeGetterFunc(func(ctx context.Context, nodeName string, options metav1.GetOptions) (*v1.Node, error) {
-		obj, err := nodeREST.Get(ctx, nodeName, &options)
+	nodeGetter := client.NodeGetterFunc(func(nodeName string, options metav1.GetOptions) (*v1.Node, error) {
+		obj, err := nodeREST.Get(genericapirequest.NewContext(), nodeName, &options)
 		if err != nil {
 			return nil, err
 		}
@@ -128,9 +129,9 @@ func NewStorage(optsGetter generic.RESTOptionsGetter, kubeletClientConfig client
 	proxyREST.Connection = connectionInfoGetter
 
 	return &NodeStorage{
-		Node:                  nodeREST,
-		Status:                statusREST,
-		Proxy:                 proxyREST,
+		Node:   nodeREST,
+		Status: statusREST,
+		Proxy:  proxyREST,
 		KubeletConnectionInfo: connectionInfoGetter,
 	}, nil
 }

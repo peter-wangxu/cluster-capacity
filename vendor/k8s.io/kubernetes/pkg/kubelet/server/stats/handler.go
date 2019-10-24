@@ -25,8 +25,8 @@ import (
 	"time"
 
 	restful "github.com/emicklei/go-restful"
+	"github.com/golang/glog"
 	cadvisorapi "github.com/google/cadvisor/info/v1"
-	"k8s.io/klog"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,15 +43,6 @@ type StatsProvider interface {
 	//
 	// ListPodStats returns the stats of all the containers managed by pods.
 	ListPodStats() ([]statsapi.PodStats, error)
-	// ListPodStatsAndUpdateCPUNanoCoreUsage updates the cpu nano core usage for
-	// the containers and returns the stats for all the pod-managed containers.
-	ListPodCPUAndMemoryStats() ([]statsapi.PodStats, error)
-	// ListPodStatsAndUpdateCPUNanoCoreUsage returns the stats of all the
-	// containers managed by pods and force update the cpu usageNanoCores.
-	// This is a workaround for CRI runtimes that do not integrate with
-	// cadvisor. See https://github.com/kubernetes/kubernetes/issues/72788
-	// for more details.
-	ListPodStatsAndUpdateCPUNanoCoreUsage() ([]statsapi.PodStats, error)
 	// ImageFsStats returns the stats of the image filesystem.
 	ImageFsStats() (*statsapi.FsStats, error)
 
@@ -60,9 +51,6 @@ type StatsProvider interface {
 	// GetCgroupStats returns the stats and the networking usage of the cgroup
 	// with the specified cgroupName.
 	GetCgroupStats(cgroupName string, updateStats bool) (*statsapi.ContainerStats, *statsapi.NetworkStats, error)
-	// GetCgroupCPUAndMemoryStats returns the CPU and memory stats of the cgroup with the specified cgroupName.
-	GetCgroupCPUAndMemoryStats(cgroupName string, updateStats bool) (*statsapi.ContainerStats, error)
-
 	// RootFsStats returns the stats of the node root filesystem.
 	RootFsStats() (*statsapi.FsStats, error)
 
@@ -204,23 +192,10 @@ func (h *handler) handleStats(request *restful.Request, response *restful.Respon
 }
 
 // Handles stats summary requests to /stats/summary
-// If "only_cpu_and_memory" GET param is true then only cpu and memory is returned in response.
 func (h *handler) handleSummary(request *restful.Request, response *restful.Response) {
-	onlyCPUAndMemory := false
-	request.Request.ParseForm()
-	if onlyCluAndMemoryParam, found := request.Request.Form["only_cpu_and_memory"]; found &&
-		len(onlyCluAndMemoryParam) == 1 && onlyCluAndMemoryParam[0] == "true" {
-		onlyCPUAndMemory = true
-	}
-	var summary *statsapi.Summary
-	var err error
-	if onlyCPUAndMemory {
-		summary, err = h.summaryProvider.GetCPUAndMemoryStats()
-	} else {
-		// external calls to the summary API use cached stats
-		forceStatsUpdate := false
-		summary, err = h.summaryProvider.Get(forceStatsUpdate)
-	}
+	// external calls to the summary API use cached stats
+	forceStatsUpdate := false
+	summary, err := h.summaryProvider.Get(forceStatsUpdate)
 	if err != nil {
 		handleError(response, "/stats/summary", err)
 	} else {
@@ -243,7 +218,7 @@ func (h *handler) handleSystemContainer(request *restful.Request, response *rest
 	if err != nil {
 		if _, ok := stats[containerName]; ok {
 			// If the failure is partial, log it and return a best-effort response.
-			klog.Errorf("Partial failure issuing GetRawContainerInfo(%v): %v", query, err)
+			glog.Errorf("Partial failure issuing GetRawContainerInfo(%v): %v", query, err)
 		} else {
 			handleError(response, fmt.Sprintf("/stats/container %v", query), err)
 			return
@@ -279,7 +254,7 @@ func (h *handler) handlePodContainer(request *restful.Request, response *restful
 
 	pod, ok := h.provider.GetPodByName(params["namespace"], params["podName"])
 	if !ok {
-		klog.V(4).Infof("Container not found: %v", params)
+		glog.V(4).Infof("Container not found: %v", params)
 		response.WriteError(http.StatusNotFound, kubecontainer.ErrContainerNotFound)
 		return
 	}
@@ -298,7 +273,7 @@ func (h *handler) handlePodContainer(request *restful.Request, response *restful
 
 func writeResponse(response *restful.Response, stats interface{}) {
 	if err := response.WriteAsJson(stats); err != nil {
-		klog.Errorf("Error writing response: %v", err)
+		glog.Errorf("Error writing response: %v", err)
 	}
 }
 
@@ -310,7 +285,7 @@ func handleError(response *restful.Response, request string, err error) {
 		response.WriteError(http.StatusNotFound, err)
 	default:
 		msg := fmt.Sprintf("Internal Error: %v", err)
-		klog.Errorf("HTTP InternalServerError serving %s: %s", request, msg)
+		glog.Errorf("HTTP InternalServerError serving %s: %s", request, msg)
 		response.WriteErrorString(http.StatusInternalServerError, msg)
 	}
 }

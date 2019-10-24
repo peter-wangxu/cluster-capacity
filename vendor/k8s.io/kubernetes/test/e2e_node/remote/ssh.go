@@ -24,7 +24,7 @@ import (
 	"strings"
 	"sync"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 var sshOptions = flag.String("ssh-options", "", "Commandline options passed to ssh.")
@@ -38,7 +38,7 @@ var sshDefaultKeyMap map[string]string
 func init() {
 	usr, err := user.Current()
 	if err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 	sshOptionsMap = map[string]string{
 		"gce": "-o UserKnownHostsFile=/dev/null -o IdentitiesOnly=yes -o CheckHostIP=no -o StrictHostKeyChecking=no -o ServerAliveInterval=30 -o LogLevel=ERROR",

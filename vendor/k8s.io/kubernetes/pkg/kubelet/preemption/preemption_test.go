@@ -24,11 +24,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	utilfeaturetesting "k8s.io/apiserver/pkg/util/feature/testing"
 	"k8s.io/client-go/tools/record"
 	kubeapi "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/scheduling"
-	"k8s.io/kubernetes/pkg/features"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 )
 
@@ -91,7 +89,9 @@ func getTestCriticalPodAdmissionHandler(podProvider *fakePodProvider, podKiller 
 }
 
 func TestEvictPodsToFreeRequests(t *testing.T) {
-	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExperimentalCriticalPodAnnotation, true)()
+	if err := utilfeature.DefaultFeatureGate.Set("ExperimentalCriticalPodAnnotation=true"); err != nil {
+		t.Errorf("failed to set ExperimentalCriticalPodAnnotation to true: %v", err)
+	}
 	type testRun struct {
 		testName              string
 		inputPods             []*v1.Pod
@@ -159,7 +159,6 @@ func BenchmarkGetPodsToPreempt(t *testing.B) {
 }
 
 func TestGetPodsToPreempt(t *testing.T) {
-	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExperimentalCriticalPodAnnotation, true)()
 	type testRun struct {
 		testName              string
 		preemptor             *v1.Pod

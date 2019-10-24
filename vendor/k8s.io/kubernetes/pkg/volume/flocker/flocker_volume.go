@@ -43,8 +43,8 @@ func (b *flockerVolumeDeleter) GetPath() string {
 	return getPath(b.podUID, b.volName, b.plugin.host)
 }
 
-func (b *flockerVolumeDeleter) Delete() error {
-	return b.manager.DeleteVolume(b)
+func (d *flockerVolumeDeleter) Delete() error {
+	return d.manager.DeleteVolume(d)
 }
 
 type flockerVolumeProvisioner struct {

@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
@@ -65,7 +65,7 @@ func setupAllocator(apiURL string, config *Config, clusterCIDR, serviceCIDR *net
 
 func runTest(t *testing.T, apiURL string, config *Config, clusterCIDR, serviceCIDR *net.IPNet, subnetMaskSize int) (*Results, error) {
 	t.Helper()
-	klog.Infof("Running test %s", t.Name())
+	glog.Infof("Running test %s", t.Name())
 
 	defer deleteNodes(apiURL, config) // cleanup nodes on after controller shutdown
 
@@ -85,7 +85,7 @@ func runTest(t *testing.T, apiURL string, config *Config, clusterCIDR, serviceCI
 	}
 
 	results := o.Results(t.Name(), config)
-	klog.Infof("Results: %s", results)
+	glog.Infof("Results: %s", results)
 	if !results.Succeeded {
 		t.Errorf("%s: Not allocations succeeded", t.Name())
 	}
@@ -95,16 +95,16 @@ func runTest(t *testing.T, apiURL string, config *Config, clusterCIDR, serviceCI
 func logResults(allResults []*Results) {
 	jStr, err := json.MarshalIndent(allResults, "", "  ")
 	if err != nil {
-		klog.Errorf("Error formatting results: %v", err)
+		glog.Errorf("Error formatting results: %v", err)
 		return
 	}
 	if resultsLogFile != "" {
-		klog.Infof("Logging results to %s", resultsLogFile)
+		glog.Infof("Logging results to %s", resultsLogFile)
 		if err := ioutil.WriteFile(resultsLogFile, jStr, os.FileMode(0644)); err != nil {
-			klog.Errorf("Error logging results to %s: %v", resultsLogFile, err)
+			glog.Errorf("Error logging results to %s: %v", resultsLogFile, err)
 		}
 	}
-	klog.Infof("AllResults:\n%s", string(jStr))
+	glog.Infof("AllResults:\n%s", string(jStr))
 }
 
 func TestPerformance(t *testing.T) {

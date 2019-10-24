@@ -26,11 +26,10 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
-	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 	gcecloud "k8s.io/kubernetes/pkg/cloudprovider/providers/gce"
 	"k8s.io/kubernetes/pkg/cloudprovider/providers/gce/cloud"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"k8s.io/kubernetes/test/e2e/framework/providers/gce"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -54,7 +53,7 @@ var _ = SIGDescribe("Services [Feature:GCEAlphaFeature][Slow]", func() {
 		}
 		for _, lb := range serviceLBNames {
 			framework.Logf("cleaning gce resource for %s", lb)
-			framework.TestContext.CloudConfig.Provider.CleanupServiceResources(cs, lb, framework.TestContext.CloudConfig.Region, framework.TestContext.CloudConfig.Zone)
+			framework.CleanupServiceGCEResources(cs, lb, framework.TestContext.CloudConfig.Region, framework.TestContext.CloudConfig.Zone)
 		}
 		//reset serviceLBNames
 		serviceLBNames = []string{}
@@ -103,7 +102,7 @@ var _ = SIGDescribe("Services [Feature:GCEAlphaFeature][Slow]", func() {
 		// Test 3: create a standard-tierd LB with a user-requested IP.
 		By("reserving a static IP for the load balancer")
 		requestedAddrName := fmt.Sprintf("e2e-ext-lb-net-tier-%s", framework.RunId)
-		gceCloud, err := gce.GetGCECloud()
+		gceCloud, err := framework.GetGCECloud()
 		Expect(err).NotTo(HaveOccurred())
 		requestedIP, err := reserveAlphaRegionalAddress(gceCloud, requestedAddrName, cloud.NetworkTierStandard)
 		Expect(err).NotTo(HaveOccurred(), "failed to reserve a STANDARD tiered address")
@@ -188,7 +187,7 @@ func getLBNetworkTierByIP(ip string) (cloud.NetworkTier, error) {
 }
 
 func getGCEForwardingRuleByIP(ip string) (*computealpha.ForwardingRule, error) {
-	cloud, err := gce.GetGCECloud()
+	cloud, err := framework.GetGCECloud()
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +221,7 @@ func clearNetworkTier(svc *v1.Service) {
 
 // TODO: add retries if this turns out to be flaky.
 // TODO(#51665): remove this helper function once Network Tiers becomes beta.
-func reserveAlphaRegionalAddress(cloud *gcecloud.Cloud, name string, netTier cloud.NetworkTier) (string, error) {
+func reserveAlphaRegionalAddress(cloud *gcecloud.GCECloud, name string, netTier cloud.NetworkTier) (string, error) {
 	alphaAddr := &computealpha.Address{
 		Name:        name,
 		NetworkTier: netTier.ToGCEValue(),

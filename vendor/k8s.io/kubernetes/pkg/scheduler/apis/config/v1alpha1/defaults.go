@@ -62,7 +62,7 @@ func SetDefaults_KubeSchedulerConfiguration(obj *kubescedulerconfigv1alpha1.Kube
 		}
 		obj.HealthzBindAddress = net.JoinHostPort(host, port)
 	} else {
-		obj.HealthzBindAddress = net.JoinHostPort("0.0.0.0", strconv.Itoa(ports.InsecureSchedulerPort))
+		obj.HealthzBindAddress = net.JoinHostPort("0.0.0.0", strconv.Itoa(ports.SchedulerPort))
 	}
 
 	if host, port, err := net.SplitHostPort(obj.MetricsBindAddress); err == nil {
@@ -71,7 +71,7 @@ func SetDefaults_KubeSchedulerConfiguration(obj *kubescedulerconfigv1alpha1.Kube
 		}
 		obj.MetricsBindAddress = net.JoinHostPort(host, port)
 	} else {
-		obj.MetricsBindAddress = net.JoinHostPort("0.0.0.0", strconv.Itoa(ports.InsecureSchedulerPort))
+		obj.MetricsBindAddress = net.JoinHostPort("0.0.0.0", strconv.Itoa(ports.SchedulerPort))
 	}
 
 	if len(obj.LeaderElection.LockObjectNamespace) == 0 {

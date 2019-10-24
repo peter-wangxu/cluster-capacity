@@ -19,7 +19,7 @@ package storageobjectinuseprotection
 import (
 	"io"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/util/feature"
@@ -97,7 +97,7 @@ func (c *storageProtectionPlugin) admitPV(a admission.Attributes) error {
 			return nil
 		}
 	}
-	klog.V(4).Infof("adding PV protection finalizer to %s", pv.Name)
+	glog.V(4).Infof("adding PV protection finalizer to %s", pv.Name)
 	pv.Finalizers = append(pv.Finalizers, volumeutil.PVProtectionFinalizer)
 
 	return nil
@@ -121,7 +121,7 @@ func (c *storageProtectionPlugin) admitPVC(a admission.Attributes) error {
 		}
 	}
 
-	klog.V(4).Infof("adding PVC protection finalizer to %s/%s", pvc.Namespace, pvc.Name)
+	glog.V(4).Infof("adding PVC protection finalizer to %s/%s", pvc.Namespace, pvc.Name)
 	pvc.Finalizers = append(pvc.Finalizers, volumeutil.PVCProtectionFinalizer)
 	return nil
 }

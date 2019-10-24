@@ -40,7 +40,7 @@ import (
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/util/hash"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // Generate a pod name that is unique among nodes by appending the nodeName.
@@ -59,16 +59,16 @@ func applyDefaults(pod *api.Pod, source string, isFile bool, nodeName types.Node
 		}
 		hash.DeepHashObject(hasher, pod)
 		pod.UID = types.UID(hex.EncodeToString(hasher.Sum(nil)[0:]))
-		klog.V(5).Infof("Generated UID %q pod %q from %s", pod.UID, pod.Name, source)
+		glog.V(5).Infof("Generated UID %q pod %q from %s", pod.UID, pod.Name, source)
 	}
 
 	pod.Name = generatePodName(pod.Name, nodeName)
-	klog.V(5).Infof("Generated Name %q for UID %q from URL %s", pod.Name, pod.UID, source)
+	glog.V(5).Infof("Generated Name %q for UID %q from URL %s", pod.Name, pod.UID, source)
 
 	if pod.Namespace == "" {
 		pod.Namespace = metav1.NamespaceDefault
 	}
-	klog.V(5).Infof("Using namespace %q for pod %q from %s", pod.Namespace, pod.Name, source)
+	glog.V(5).Infof("Using namespace %q for pod %q from %s", pod.Namespace, pod.Name, source)
 
 	// Set the Host field to indicate this pod is scheduled on the current node.
 	pod.Spec.NodeName = string(nodeName)
@@ -132,7 +132,7 @@ func tryDecodeSinglePod(data []byte, defaultFn defaultFunc) (parsed bool, pod *v
 	}
 	v1Pod := &v1.Pod{}
 	if err := k8s_api_v1.Convert_core_Pod_To_v1_Pod(newPod, v1Pod, nil); err != nil {
-		klog.Errorf("Pod %q failed to convert to v1", newPod.Name)
+		glog.Errorf("Pod %q failed to convert to v1", newPod.Name)
 		return true, nil, err
 	}
 	return true, v1Pod, nil

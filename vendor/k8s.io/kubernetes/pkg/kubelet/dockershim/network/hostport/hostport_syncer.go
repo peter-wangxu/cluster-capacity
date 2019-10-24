@@ -25,7 +25,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	iptablesproxy "k8s.io/kubernetes/pkg/proxy/iptables"
@@ -97,7 +97,7 @@ func (h *hostportSyncer) openHostports(podHostportMapping *PodPortMapping) error
 	if retErr != nil {
 		for hp, socket := range ports {
 			if err := socket.Close(); err != nil {
-				klog.Errorf("Cannot clean up hostport %d for pod %s: %v", hp.port, getPodFullName(podHostportMapping), err)
+				glog.Errorf("Cannot clean up hostport %d for pod %s: %v", hp.port, getPodFullName(podHostportMapping), err)
 			}
 		}
 		return retErr
@@ -188,7 +188,7 @@ func (h *hostportSyncer) OpenPodHostportsAndSync(newPortMapping *PodPortMapping,
 func (h *hostportSyncer) SyncHostports(natInterfaceName string, activePodPortMappings []*PodPortMapping) error {
 	start := time.Now()
 	defer func() {
-		klog.V(4).Infof("syncHostportsRules took %v", time.Since(start))
+		glog.V(4).Infof("syncHostportsRules took %v", time.Since(start))
 	}()
 
 	hostportPodMap, err := gatherAllHostports(activePodPortMappings)
@@ -205,7 +205,7 @@ func (h *hostportSyncer) SyncHostports(natInterfaceName string, activePodPortMap
 	iptablesData := bytes.NewBuffer(nil)
 	err = h.iptables.SaveInto(utiliptables.TableNAT, iptablesData)
 	if err != nil { // if we failed to get any rules
-		klog.Errorf("Failed to execute iptables-save, syncing all rules: %v", err)
+		glog.Errorf("Failed to execute iptables-save, syncing all rules: %v", err)
 	} else { // otherwise parse the output
 		existingNATChains = utiliptables.GetChainLines(utiliptables.TableNAT, iptablesData.Bytes())
 	}
@@ -283,7 +283,7 @@ func (h *hostportSyncer) SyncHostports(natInterfaceName string, activePodPortMap
 	writeLine(natRules, "COMMIT")
 
 	natLines := append(natChains.Bytes(), natRules.Bytes()...)
-	klog.V(3).Infof("Restoring iptables rules: %s", natLines)
+	glog.V(3).Infof("Restoring iptables rules: %s", natLines)
 	err = h.iptables.RestoreAll(natLines, utiliptables.NoFlushTables, utiliptables.RestoreCounters)
 	if err != nil {
 		return fmt.Errorf("Failed to execute iptables-restore: %v", err)
@@ -309,7 +309,7 @@ func (h *hostportSyncer) cleanupHostportMap(containerPortMap map[*PortMapping]ta
 	for hp, socket := range h.hostPortMap {
 		if _, ok := currentHostports[hp]; !ok {
 			socket.Close()
-			klog.V(3).Infof("Closed local port %s", hp.String())
+			glog.V(3).Infof("Closed local port %s", hp.String())
 			delete(h.hostPortMap, hp)
 		}
 	}

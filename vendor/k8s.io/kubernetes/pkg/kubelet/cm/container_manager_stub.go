@@ -17,12 +17,11 @@ limitations under the License.
 package cm
 
 import (
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
-	"k8s.io/klog"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	internalapi "k8s.io/kubernetes/pkg/kubelet/apis/cri"
-	podresourcesapi "k8s.io/kubernetes/pkg/kubelet/apis/podresources/v1alpha1"
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager"
 	"k8s.io/kubernetes/pkg/kubelet/config"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
@@ -37,7 +36,7 @@ type containerManagerStub struct{}
 var _ ContainerManager = &containerManagerStub{}
 
 func (cm *containerManagerStub) Start(_ *v1.Node, _ ActivePodsFunc, _ config.SourcesReady, _ status.PodStatusProvider, _ internalapi.RuntimeService) error {
-	klog.V(2).Infof("Starting stub container manager")
+	glog.V(2).Infof("Starting stub container manager")
 	return nil
 }
 
@@ -104,10 +103,6 @@ func (cm *containerManagerStub) InternalContainerLifecycle() InternalContainerLi
 
 func (cm *containerManagerStub) GetPodCgroupRoot() string {
 	return ""
-}
-
-func (cm *containerManagerStub) GetDevices(_, _ string) []*podresourcesapi.ContainerDevices {
-	return nil
 }
 
 func NewStubContainerManager() ContainerManager {

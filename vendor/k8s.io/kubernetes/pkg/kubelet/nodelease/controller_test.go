@@ -21,24 +21,15 @@ import (
 	"time"
 
 	coordv1beta1 "k8s.io/api/coordination/v1beta1"
-	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/apimachinery/pkg/util/diff"
-	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/utils/pointer"
 )
 
 func TestNewLease(t *testing.T) {
 	fakeClock := clock.NewFakeClock(time.Now())
-	node := &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "foo",
-			UID:  types.UID("foo-uid"),
-		},
-	}
 	cases := []struct {
 		desc       string
 		controller *controller
@@ -46,136 +37,47 @@ func TestNewLease(t *testing.T) {
 		expect     *coordv1beta1.Lease
 	}{
 		{
-			desc: "nil base without node",
+			desc: "nil base",
 			controller: &controller{
-				client:               fake.NewSimpleClientset(),
-				holderIdentity:       node.Name,
+				holderIdentity:       "foo",
 				leaseDurationSeconds: 10,
 				clock:                fakeClock,
 			},
 			base: nil,
 			expect: &coordv1beta1.Lease{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      node.Name,
-					Namespace: corev1.NamespaceNodeLease,
+					Name: "foo",
 				},
 				Spec: coordv1beta1.LeaseSpec{
-					HolderIdentity:       pointer.StringPtr(node.Name),
+					HolderIdentity:       pointer.StringPtr("foo"),
 					LeaseDurationSeconds: pointer.Int32Ptr(10),
 					RenewTime:            &metav1.MicroTime{Time: fakeClock.Now()},
 				},
 			},
 		},
 		{
-			desc: "nil base with node",
+			desc: "non-nil base renew time is updated",
 			controller: &controller{
-				client:               fake.NewSimpleClientset(node),
-				holderIdentity:       node.Name,
-				leaseDurationSeconds: 10,
-				clock:                fakeClock,
-			},
-			base: nil,
-			expect: &coordv1beta1.Lease{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      node.Name,
-					Namespace: corev1.NamespaceNodeLease,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: corev1.SchemeGroupVersion.WithKind("Node").Version,
-							Kind:       corev1.SchemeGroupVersion.WithKind("Node").Kind,
-							Name:       node.Name,
-							UID:        node.UID,
-						},
-					},
-				},
-				Spec: coordv1beta1.LeaseSpec{
-					HolderIdentity:       pointer.StringPtr(node.Name),
-					LeaseDurationSeconds: pointer.Int32Ptr(10),
-					RenewTime:            &metav1.MicroTime{Time: fakeClock.Now()},
-				},
-			},
-		},
-		{
-			desc: "non-nil base without owner ref, renew time is updated",
-			controller: &controller{
-				client:               fake.NewSimpleClientset(node),
-				holderIdentity:       node.Name,
+				holderIdentity:       "foo",
 				leaseDurationSeconds: 10,
 				clock:                fakeClock,
 			},
 			base: &coordv1beta1.Lease{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      node.Name,
-					Namespace: corev1.NamespaceNodeLease,
+					Name: "foo",
 				},
 				Spec: coordv1beta1.LeaseSpec{
-					HolderIdentity:       pointer.StringPtr(node.Name),
+					HolderIdentity:       pointer.StringPtr("foo"),
 					LeaseDurationSeconds: pointer.Int32Ptr(10),
 					RenewTime:            &metav1.MicroTime{Time: fakeClock.Now().Add(-10 * time.Second)},
 				},
 			},
 			expect: &coordv1beta1.Lease{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      node.Name,
-					Namespace: corev1.NamespaceNodeLease,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: corev1.SchemeGroupVersion.WithKind("Node").Version,
-							Kind:       corev1.SchemeGroupVersion.WithKind("Node").Kind,
-							Name:       node.Name,
-							UID:        node.UID,
-						},
-					},
+					Name: "foo",
 				},
 				Spec: coordv1beta1.LeaseSpec{
-					HolderIdentity:       pointer.StringPtr(node.Name),
-					LeaseDurationSeconds: pointer.Int32Ptr(10),
-					RenewTime:            &metav1.MicroTime{Time: fakeClock.Now()},
-				},
-			},
-		},
-		{
-			desc: "non-nil base with owner ref, renew time is updated",
-			controller: &controller{
-				client:               fake.NewSimpleClientset(node),
-				holderIdentity:       node.Name,
-				leaseDurationSeconds: 10,
-				clock:                fakeClock,
-			},
-			base: &coordv1beta1.Lease{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      node.Name,
-					Namespace: corev1.NamespaceNodeLease,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: corev1.SchemeGroupVersion.WithKind("Node").Version,
-							Kind:       corev1.SchemeGroupVersion.WithKind("Node").Kind,
-							Name:       node.Name,
-							UID:        node.UID,
-						},
-					},
-				},
-				Spec: coordv1beta1.LeaseSpec{
-					HolderIdentity:       pointer.StringPtr(node.Name),
-					LeaseDurationSeconds: pointer.Int32Ptr(10),
-					RenewTime:            &metav1.MicroTime{Time: fakeClock.Now().Add(-10 * time.Second)},
-				},
-			},
-			expect: &coordv1beta1.Lease{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      node.Name,
-					Namespace: corev1.NamespaceNodeLease,
-					OwnerReferences: []metav1.OwnerReference{
-						{
-							APIVersion: corev1.SchemeGroupVersion.WithKind("Node").Version,
-							Kind:       corev1.SchemeGroupVersion.WithKind("Node").Kind,
-							Name:       node.Name,
-							UID:        node.UID,
-						},
-					},
-				},
-				Spec: coordv1beta1.LeaseSpec{
-					HolderIdentity:       pointer.StringPtr(node.Name),
+					HolderIdentity:       pointer.StringPtr("foo"),
 					LeaseDurationSeconds: pointer.Int32Ptr(10),
 					RenewTime:            &metav1.MicroTime{Time: fakeClock.Now()},
 				},

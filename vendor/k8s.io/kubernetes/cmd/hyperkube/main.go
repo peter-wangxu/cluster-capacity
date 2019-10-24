@@ -47,7 +47,7 @@ import (
 )
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
+	rand.Seed(time.Now().UTC().UnixNano())
 
 	hyperkubeCommand, allCommandFns := NewHyperKubeCommand(server.SetupSignalHandler())
 

@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/glog"
 	storage "k8s.io/api/storage/v1beta1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,7 +39,6 @@ import (
 	core "k8s.io/client-go/testing"
 	utiltesting "k8s.io/client-go/util/testing"
 	fakecsi "k8s.io/csi-api/pkg/client/clientset/versioned/fake"
-	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/volume"
 	volumetest "k8s.io/kubernetes/pkg/volume/testing"
@@ -85,11 +85,11 @@ func markVolumeAttached(t *testing.T, client clientset.Interface, watch *watch.R
 			t.Error(err)
 		}
 		if attach != nil {
-			klog.Infof("stopping wait")
+			glog.Infof("stopping wait")
 			break
 		}
 	}
-	klog.Infof("stopped wait")
+	glog.Infof("stopped wait")
 
 	if attach == nil {
 		t.Logf("attachment not found for id:%v", attachID)

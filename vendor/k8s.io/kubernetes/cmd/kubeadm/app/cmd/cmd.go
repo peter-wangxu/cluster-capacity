@@ -22,7 +22,8 @@ import (
 	"github.com/renstrom/dedent"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"k8s.io/kubernetes/cmd/kubeadm/app/cmd/alpha"
+
+	"k8s.io/kubernetes/cmd/kubeadm/app/cmd/phases"
 	"k8s.io/kubernetes/cmd/kubeadm/app/cmd/upgrade"
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
 	// Register the kubeadm configuration types because CLI flag generation
@@ -37,31 +38,32 @@ func NewKubeadmCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 		Use:   "kubeadm",
 		Short: "kubeadm: easily bootstrap a secure Kubernetes cluster",
 		Long: dedent.Dedent(`
+			kubeadm: easily bootstrap a secure Kubernetes cluster.
 
 			    ┌──────────────────────────────────────────────────────────┐
-			    │ KUBEADM                                                  │
-			    │ Easily bootstrap a secure Kubernetes cluster             │
+			    │ KUBEADM IS CURRENTLY IN BETA                             │
 			    │                                                          │
-			    │ Please give us feedback at:                              │
+			    │ But please, try it out and give us feedback at:          │
 			    │ https://github.com/kubernetes/kubeadm/issues             │
+			    │ and at-mention @kubernetes/sig-cluster-lifecycle-bugs    │
+			    │ or @kubernetes/sig-cluster-lifecycle-feature-requests    │
 			    └──────────────────────────────────────────────────────────┘
 
 			Example usage:
 
-			    Create a two-machine cluster with one control-plane node
-			    (which controls the cluster), and one worker node
-			    (where your workloads, like Pods and Deployments run).
+			    Create a two-machine cluster with one master (which controls the cluster),
+			    and one node (where your workloads, like Pods and Deployments run).
 
 			    ┌──────────────────────────────────────────────────────────┐
 			    │ On the first machine:                                    │
 			    ├──────────────────────────────────────────────────────────┤
-			    │ control-plane# kubeadm init                              │
+			    │ master# kubeadm init                                     │
 			    └──────────────────────────────────────────────────────────┘
 
 			    ┌──────────────────────────────────────────────────────────┐
 			    │ On the second machine:                                   │
 			    ├──────────────────────────────────────────────────────────┤
-			    │ worker# kubeadm join <arguments-returned-from-init>      │
+			    │ node# kubeadm join <arguments-returned-from-init>        │
 			    └──────────────────────────────────────────────────────────┘
 
 			    You can then repeat the second step on as many other machines as you like.
@@ -88,7 +90,14 @@ func NewKubeadmCommand(in io.Reader, out, err io.Writer) *cobra.Command {
 	cmds.AddCommand(NewCmdVersion(out))
 	cmds.AddCommand(NewCmdToken(out, err))
 	cmds.AddCommand(upgrade.NewCmdUpgrade(out))
-	cmds.AddCommand(alpha.NewCmdAlpha(in, out))
+
+	// Wrap not yet fully supported commands in an alpha subcommand
+	experimentalCmd := &cobra.Command{
+		Use:   "alpha",
+		Short: "Experimental sub-commands not yet fully functional.",
+	}
+	experimentalCmd.AddCommand(phases.NewCmdPhase(out))
+	cmds.AddCommand(experimentalCmd)
 
 	AddKubeadmOtherFlags(cmds.PersistentFlags(), &rootfsPath)
 

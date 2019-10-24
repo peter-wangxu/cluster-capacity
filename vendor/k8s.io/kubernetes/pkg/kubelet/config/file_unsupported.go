@@ -22,11 +22,11 @@ package config
 import (
 	"fmt"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 func (s *sourceFile) startWatch() {
-	klog.Errorf("Watching source file is unsupported in this build")
+	glog.Errorf("Watching source file is unsupported in this build")
 }
 
 func (s *sourceFile) consumeWatchEvent(e *watchEvent) error {

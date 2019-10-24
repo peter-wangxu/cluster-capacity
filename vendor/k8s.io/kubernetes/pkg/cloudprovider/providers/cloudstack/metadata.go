@@ -25,10 +25,10 @@ import (
 	"net/http"
 
 	"github.com/d2g/dhcp4"
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/klog"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
 type metadata struct {
@@ -143,7 +143,7 @@ func (m *metadata) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
 		m.zone = zoneName
 	}
 
-	klog.V(2).Infof("Current zone is %v", zone)
+	glog.V(2).Infof("Current zone is %v", zone)
 	zone.FailureDomain = m.zone
 	zone.Region = m.zone
 

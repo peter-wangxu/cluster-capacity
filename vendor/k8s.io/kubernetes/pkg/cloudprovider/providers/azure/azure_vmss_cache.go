@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 )
@@ -50,7 +50,7 @@ func (ss *scaleSet) makeVmssVMName(scaleSetName, instanceID string) string {
 func extractVmssVMName(name string) (string, string, error) {
 	split := strings.SplitAfter(name, vmssNameSeparator)
 	if len(split) < 2 {
-		klog.V(3).Infof("Failed to extract vmssVMName %q", name)
+		glog.V(3).Infof("Failed to extract vmssVMName %q", name)
 		return "", "", ErrorNotVmssInstance
 	}
 
@@ -74,7 +74,7 @@ func (ss *scaleSet) newVmssCache() (*timedCache, error) {
 		}
 
 		if !exists {
-			klog.V(2).Infof("Virtual machine scale set %q not found with message: %q", key, message)
+			glog.V(2).Infof("Virtual machine scale set %q not found with message: %q", key, message)
 			return nil, nil
 		}
 
@@ -107,7 +107,7 @@ func (ss *scaleSet) newNodeNameToScaleSetMappingCache() (*timedCache, error) {
 
 				for _, vm := range vms {
 					if vm.OsProfile == nil || vm.OsProfile.ComputerName == nil {
-						klog.Warningf("failed to get computerName for vmssVM (%q)", ssName)
+						glog.Warningf("failed to get computerName for vmssVM (%q)", ssName)
 						continue
 					}
 
@@ -195,7 +195,7 @@ func (ss *scaleSet) newVmssVMCache() (*timedCache, error) {
 		}
 
 		if !exists {
-			klog.V(2).Infof("Virtual machine scale set VM %q not found with message: %q", key, message)
+			glog.V(2).Infof("Virtual machine scale set VM %q not found with message: %q", key, message)
 			return nil, nil
 		}
 
@@ -210,7 +210,7 @@ func (ss *scaleSet) newVmssVMCache() (*timedCache, error) {
 				return nil, realErr
 			}
 			if !exists {
-				klog.V(2).Infof("Virtual machine scale set VM %q not found with message: %q", key, message)
+				glog.V(2).Infof("Virtual machine scale set VM %q not found with message: %q", key, message)
 				return nil, nil
 			}
 

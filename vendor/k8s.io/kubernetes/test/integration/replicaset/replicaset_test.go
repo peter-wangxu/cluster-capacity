@@ -340,7 +340,9 @@ func testScalingUsingScaleSubresource(t *testing.T, c clientset.Interface, rs *a
 	if err != nil {
 		t.Fatalf("Failed to obtain rs %s: %v", rs.Name, err)
 	}
-	scale, err := c.AppsV1().ReplicaSets(ns).GetScale(rs.Name, metav1.GetOptions{})
+	kind := "ReplicaSet"
+	scaleClient := c.ExtensionsV1beta1().Scales(ns)
+	scale, err := scaleClient.Get(kind, rs.Name)
 	if err != nil {
 		t.Fatalf("Failed to obtain scale subresource for rs %s: %v", rs.Name, err)
 	}
@@ -349,12 +351,12 @@ func testScalingUsingScaleSubresource(t *testing.T, c clientset.Interface, rs *a
 	}
 
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		scale, err := c.AppsV1().ReplicaSets(ns).GetScale(rs.Name, metav1.GetOptions{})
+		scale, err := scaleClient.Get(kind, rs.Name)
 		if err != nil {
 			return err
 		}
 		scale.Spec.Replicas = replicas
-		_, err = c.AppsV1().ReplicaSets(ns).UpdateScale(rs.Name, scale)
+		_, err = scaleClient.Update(kind, scale)
 		return err
 	}); err != nil {
 		t.Fatalf("Failed to set .Spec.Replicas of scale subresource for rs %s: %v", rs.Name, err)

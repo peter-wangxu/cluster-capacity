@@ -64,7 +64,6 @@ go_test(
     srcs = [
         "etcd_test.go",
         "status_strategy_test.go",
-        "strategy_test.go",
     ],
     embed = [":go_default_library"],
     deps = [

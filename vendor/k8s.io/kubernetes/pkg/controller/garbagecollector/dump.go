@@ -252,7 +252,7 @@ type debugHTTPHandler struct {
 
 func (h *debugHTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.URL.Path != "/graph" {
-		http.Error(w, "", http.StatusNotFound)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
@@ -270,7 +270,8 @@ func (h *debugHTTPHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	data, err := dot.Marshal(graph, "full", "", "  ", false)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	w.Write(data)

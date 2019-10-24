@@ -42,7 +42,7 @@ import (
 	"github.com/coreos/etcd/wal"
 	"github.com/coreos/etcd/wal/walpb"
 	"github.com/coreos/go-semver/semver"
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 const rollbackVersion = "2.2.0"
@@ -50,7 +50,7 @@ const rollbackVersion = "2.2.0"
 // RollbackV3ToV2 rolls back an etcd 3.0.x data directory to the 2.x.x version specified by rollbackVersion.
 func RollbackV3ToV2(migrateDatadir string, ttl time.Duration) error {
 	dbpath := path.Join(migrateDatadir, "member", "snap", "db")
-	klog.Infof("Rolling db file %s back to etcd 2.x", dbpath)
+	glog.Infof("Rolling db file %s back to etcd 2.x", dbpath)
 
 	// etcd3 store backend. We will use it to parse v3 data files and extract information.
 	be := backend.NewDefaultBackend(dbpath)
@@ -139,7 +139,7 @@ func RollbackV3ToV2(migrateDatadir string, ttl time.Duration) error {
 				v = rollbackVersion
 			}
 			if _, err := st.Set(n.Key, n.Dir, v, store.TTLOptionSet{}); err != nil {
-				klog.Error(err)
+				glog.Error(err)
 			}
 
 			// update nodes
@@ -147,7 +147,7 @@ func RollbackV3ToV2(migrateDatadir string, ttl time.Duration) error {
 			if len(fields) == 4 && fields[2] == "members" {
 				nodeID, err := strconv.ParseUint(fields[3], 16, 64)
 				if err != nil {
-					klog.Fatalf("failed to parse member ID (%s): %v", fields[3], err)
+					glog.Fatalf("failed to parse member ID (%s): %v", fields[3], err)
 				}
 				nodes = append(nodes, nodeID)
 			}
@@ -172,7 +172,7 @@ func RollbackV3ToV2(migrateDatadir string, ttl time.Duration) error {
 	if err := snapshotter.SaveSnap(raftSnap); err != nil {
 		return err
 	}
-	klog.Infof("Finished successfully")
+	glog.Infof("Finished successfully")
 	return nil
 }
 
@@ -214,7 +214,7 @@ func traverseAndDeleteEmptyDir(st store.Store, dir string) error {
 	}
 	for _, node := range e.Node.Nodes {
 		if !node.Dir {
-			klog.V(2).Infof("key: %s", node.Key[len(etcdserver.StoreKeysPrefix):])
+			glog.V(2).Infof("key: %s", node.Key[len(etcdserver.StoreKeysPrefix):])
 		} else {
 			err := traverseAndDeleteEmptyDir(st, node.Key)
 			if err != nil {
@@ -314,36 +314,15 @@ func toTTLOptions(r *pb.Request) store.TTLOptionSet {
 }
 
 func applyRequest(r *pb.Request, applyV2 etcdserver.ApplierV2) {
-	// TODO: find a sane way to perform this cast or avoid it in the first place
-	reqV2 := &etcdserver.RequestV2{
-		ID:               r.ID,
-		Method:           r.Method,
-		Path:             r.Path,
-		Val:              r.Val,
-		Dir:              r.Dir,
-		PrevValue:        r.PrevValue,
-		PrevIndex:        r.PrevIndex,
-		PrevExist:        r.PrevExist,
-		Expiration:       r.Expiration,
-		Wait:             r.Wait,
-		Since:            r.Since,
-		Recursive:        r.Recursive,
-		Sorted:           r.Sorted,
-		Quorum:           r.Quorum,
-		Time:             r.Time,
-		Stream:           r.Stream,
-		Refresh:          r.Refresh,
-		XXX_unrecognized: r.XXX_unrecognized,
-	}
 	toTTLOptions(r)
 	switch r.Method {
 	case "PUT":
-		applyV2.Put(reqV2)
+		applyV2.Put(r)
 	case "DELETE":
-		applyV2.Delete(reqV2)
+		applyV2.Delete(r)
 	case "POST", "QGET", "SYNC":
 		return
 	default:
-		klog.Fatal("unknown command")
+		glog.Fatal("unknown command")
 	}
 }

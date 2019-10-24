@@ -21,8 +21,9 @@ package util
 import (
 	"sync"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/cli-runtime/pkg/genericclioptions/resource"
 	"k8s.io/client-go/discovery"
@@ -30,6 +31,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/kubernetes/pkg/api/legacyscheme"
+	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/util/openapi"
 	openapivalidation "k8s.io/kubernetes/pkg/kubectl/cmd/util/openapi/validation"
 	"k8s.io/kubernetes/pkg/kubectl/validation"
@@ -115,7 +118,7 @@ func (f *factoryImpl) ClientForMapping(mapping *meta.RESTMapping) (resource.REST
 	}
 	gvk := mapping.GroupVersionKind
 	switch gvk.Group {
-	case corev1.GroupName:
+	case api.GroupName:
 		cfg.APIPath = "/api"
 	default:
 		cfg.APIPath = "/apis"
@@ -134,7 +137,7 @@ func (f *factoryImpl) UnstructuredClientForMapping(mapping *meta.RESTMapping) (r
 		return nil, err
 	}
 	cfg.APIPath = "/apis"
-	if mapping.GroupVersionKind.Group == corev1.GroupName {
+	if mapping.GroupVersionKind.Group == api.GroupName {
 		cfg.APIPath = "/api"
 	}
 	gv := mapping.GroupVersionKind.GroupVersion()
@@ -174,4 +177,14 @@ func (f *factoryImpl) OpenAPISchema() (openapi.Resources, error) {
 
 	// Delegate to the OpenAPIGetter
 	return f.openAPIGetter.getter.Get()
+}
+
+// this method exists to help us find the points still relying on internal types.
+func InternalVersionDecoder() runtime.Decoder {
+	return legacyscheme.Codecs.UniversalDecoder()
+}
+
+func InternalVersionJSONEncoder() runtime.Encoder {
+	encoder := legacyscheme.Codecs.LegacyCodec(legacyscheme.Scheme.PrioritizedVersionsAllGroups()...)
+	return unstructured.JSONFallbackEncoder{Encoder: encoder}
 }

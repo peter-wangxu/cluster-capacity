@@ -24,7 +24,7 @@ import (
 
 	"os"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 const (
@@ -63,13 +63,13 @@ func SetVolumeOwnership(mounter Mounter, fsGroup *int64) error {
 		}
 
 		if stat == nil {
-			klog.Errorf("Got nil stat_t for path %v while setting ownership of volume", path)
+			glog.Errorf("Got nil stat_t for path %v while setting ownership of volume", path)
 			return nil
 		}
 
 		err = os.Chown(path, int(stat.Uid), int(*fsGroup))
 		if err != nil {
-			klog.Errorf("Chown failed on %v: %v", path, err)
+			glog.Errorf("Chown failed on %v: %v", path, err)
 		}
 
 		mask := rwMask
@@ -83,7 +83,7 @@ func SetVolumeOwnership(mounter Mounter, fsGroup *int64) error {
 
 		err = os.Chmod(path, info.Mode()|mask)
 		if err != nil {
-			klog.Errorf("Chmod failed on %v: %v", path, err)
+			glog.Errorf("Chmod failed on %v: %v", path, err)
 		}
 
 		return nil

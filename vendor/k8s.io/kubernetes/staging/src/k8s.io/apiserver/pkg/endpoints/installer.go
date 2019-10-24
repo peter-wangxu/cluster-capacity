@@ -39,6 +39,10 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/metrics"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericfilters "k8s.io/apiserver/pkg/server/filters"
+	utilopenapi "k8s.io/apiserver/pkg/util/openapi"
+	openapibuilder "k8s.io/kube-openapi/pkg/builder"
+	openapiutil "k8s.io/kube-openapi/pkg/util"
+	openapiproto "k8s.io/kube-openapi/pkg/util/proto"
 )
 
 const (
@@ -131,17 +135,17 @@ func (a *APIInstaller) newWebService() *restful.WebService {
 	return ws
 }
 
-// GetResourceKind returns the external group version kind registered for the given storage
+// getResourceKind returns the external group version kind registered for the given storage
 // object. If the storage object is a subresource and has an override supplied for it, it returns
 // the group version kind supplied in the override.
-func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typer runtime.ObjectTyper) (schema.GroupVersionKind, error) {
+func (a *APIInstaller) getResourceKind(path string, storage rest.Storage) (schema.GroupVersionKind, error) {
 	// Let the storage tell us exactly what GVK it has
 	if gvkProvider, ok := storage.(rest.GroupVersionKindProvider); ok {
-		return gvkProvider.GroupVersionKind(groupVersion), nil
+		return gvkProvider.GroupVersionKind(a.group.GroupVersion), nil
 	}
 
 	object := storage.New()
-	fqKinds, _, err := typer.ObjectKinds(object)
+	fqKinds, _, err := a.group.Typer.ObjectKinds(object)
 	if err != nil {
 		return schema.GroupVersionKind{}, err
 	}
@@ -150,13 +154,13 @@ func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typ
 	// we're trying to register here
 	fqKindToRegister := schema.GroupVersionKind{}
 	for _, fqKind := range fqKinds {
-		if fqKind.Group == groupVersion.Group {
-			fqKindToRegister = groupVersion.WithKind(fqKind.Kind)
+		if fqKind.Group == a.group.GroupVersion.Group {
+			fqKindToRegister = a.group.GroupVersion.WithKind(fqKind.Kind)
 			break
 		}
 	}
 	if fqKindToRegister.Empty() {
-		return schema.GroupVersionKind{}, fmt.Errorf("unable to locate fully qualified kind for %v: found %v when registering for %v", reflect.TypeOf(object), fqKinds, groupVersion)
+		return schema.GroupVersionKind{}, fmt.Errorf("unable to locate fully qualified kind for %v: found %v when registering for %v", reflect.TypeOf(object), fqKinds, a.group.GroupVersion)
 	}
 
 	// group is guaranteed to match based on the check above
@@ -176,7 +180,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		return nil, err
 	}
 
-	fqKindToRegister, err := GetResourceKind(a.group.GroupVersion, storage, a.group.Typer)
+	fqKindToRegister, err := a.getResourceKind(path, storage)
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +412,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		namespaceParamName := "namespaces"
 		// Handler for standard REST verbs (GET, PUT, POST and DELETE).
 		namespaceParam := ws.PathParameter("namespace", "object name and auth scope, such as for teams and projects").DataType("string")
-		namespacedPath := namespaceParamName + "/{namespace}/" + resource
+		namespacedPath := namespaceParamName + "/{" + "namespace" + "}/" + resource
 		namespaceParams := []*restful.Parameter{namespaceParam}
 
 		resourcePath := namespacedPath
@@ -502,8 +506,6 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		Subresource: subresource,
 		Kind:        fqKindToRegister,
 
-		HubGroupVersion: schema.GroupVersion{Group: fqKindToRegister.Group, Version: runtime.APIVersionInternal},
-
 		MetaGroupVersion: metav1.SchemeGroupVersion,
 
 		MaxRequestBodyBytes: a.group.MaxRequestBodyBytes,
@@ -511,7 +513,10 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	if a.group.MetaGroupVersion != nil {
 		reqScope.MetaGroupVersion = *a.group.MetaGroupVersion
 	}
-	reqScope.OpenAPIModels = a.group.OpenAPIModels
+	reqScope.OpenAPISchema, err = a.getOpenAPISchema(ws.RootPath(), resource, fqKindToRegister, defaultVersionedObject)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get openapi schema for %v: %v", fqKindToRegister, err)
+	}
 	for _, action := range actions {
 		producedObject := storageMeta.ProducesObject(action.Verb)
 		if producedObject == nil {
@@ -553,7 +558,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 				return nil, fmt.Errorf("missing parent storage: %q", resource)
 			}
 
-			fqParentKind, err := GetResourceKind(a.group.GroupVersion, parentStorage, a.group.Typer)
+			fqParentKind, err := a.getResourceKind(resource, parentStorage)
 			if err != nil {
 				return nil, err
 			}
@@ -733,7 +738,6 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 				Returns(http.StatusAccepted, "Accepted", versionedStatus)
 			if isGracefulDeleter {
 				route.Reads(versionedDeleterObject)
-				route.ParameterNamed("body").Required(false)
 				if err := addObjectParams(ws, route, versionedDeleteOptions); err != nil {
 					return nil, err
 				}
@@ -866,6 +870,24 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	}
 
 	return &apiResource, nil
+}
+
+// getOpenAPISchema builds the openapi schema for a single resource model to be given to each handler. It will
+// return nil if the apiserver doesn't have openapi enabled, or if the specific path should be ignored by openapi.
+func (a *APIInstaller) getOpenAPISchema(rootPath, resource string, kind schema.GroupVersionKind, sampleObject interface{}) (openapiproto.Schema, error) {
+	path := gpath.Join(rootPath, resource)
+	if a.group.OpenAPIConfig == nil {
+		return nil, nil
+	}
+	pathsToIgnore := openapiutil.NewTrie(a.group.OpenAPIConfig.IgnorePrefixes)
+	if pathsToIgnore.HasPrefix(path) {
+		return nil, nil
+	}
+	openAPIDefinitions, err := openapibuilder.BuildOpenAPIDefinitionsForResource(sampleObject, a.group.OpenAPIConfig)
+	if err != nil {
+		return nil, err
+	}
+	return utilopenapi.ToProtoSchema(openAPIDefinitions, kind)
 }
 
 // indirectArbitraryPointer returns *ptrToObject for an arbitrary pointer

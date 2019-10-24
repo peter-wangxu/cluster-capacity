@@ -129,7 +129,6 @@ func TestVolumeStatsCollector(t *testing.T) {
 
 	mockStatsProvider := new(statstest.StatsProvider)
 	mockStatsProvider.On("ListPodStats").Return(podStats, nil)
-	mockStatsProvider.On("ListPodStatsAndUpdateCPUNanoCoreUsage").Return(podStats, nil)
 	if err := gatherAndCompare(&volumeStatsCollector{statsProvider: mockStatsProvider}, want, metrics); err != nil {
 		t.Errorf("unexpected collecting result:\n%s", err)
 	}

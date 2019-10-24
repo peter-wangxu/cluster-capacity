@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -138,7 +138,7 @@ func (m *qosContainerManagerImpl) Start(getNodeAllocatable func() v1.ResourceLis
 	go wait.Until(func() {
 		err := m.UpdateCgroups()
 		if err != nil {
-			klog.Warningf("[ContainerManager] Failed to reserve QoS requests: %v", err)
+			glog.Warningf("[ContainerManager] Failed to reserve QoS requests: %v", err)
 		}
 	}, periodicQOSCgroupUpdateInterval, wait.NeverStop)
 
@@ -222,17 +222,17 @@ func (m *qosContainerManagerImpl) setMemoryReserve(configs map[v1.PodQOSClass]*C
 	resources := m.getNodeAllocatable()
 	allocatableResource, ok := resources[v1.ResourceMemory]
 	if !ok {
-		klog.V(2).Infof("[Container Manager] Allocatable memory value could not be determined.  Not setting QOS memory limts.")
+		glog.V(2).Infof("[Container Manager] Allocatable memory value could not be determined.  Not setting QOS memory limts.")
 		return
 	}
 	allocatable := allocatableResource.Value()
 	if allocatable == 0 {
-		klog.V(2).Infof("[Container Manager] Memory allocatable reported as 0, might be in standalone mode.  Not setting QOS memory limts.")
+		glog.V(2).Infof("[Container Manager] Memory allocatable reported as 0, might be in standalone mode.  Not setting QOS memory limts.")
 		return
 	}
 
 	for qos, limits := range qosMemoryRequests {
-		klog.V(2).Infof("[Container Manager] %s pod requests total %d bytes (reserve %d%%)", qos, limits, percentReserve)
+		glog.V(2).Infof("[Container Manager] %s pod requests total %d bytes (reserve %d%%)", qos, limits, percentReserve)
 	}
 
 	// Calculate QOS memory limits
@@ -252,7 +252,7 @@ func (m *qosContainerManagerImpl) retrySetMemoryReserve(configs map[v1.PodQOSCla
 	for qos, config := range configs {
 		stats, err := m.cgroupManager.GetResourceStats(config.Name)
 		if err != nil {
-			klog.V(2).Infof("[Container Manager] %v", err)
+			glog.V(2).Infof("[Container Manager] %v", err)
 			return
 		}
 		usage := stats.MemoryStats.Usage
@@ -312,7 +312,7 @@ func (m *qosContainerManagerImpl) UpdateCgroups() error {
 			}
 		}
 		if updateSuccess {
-			klog.V(4).Infof("[ContainerManager]: Updated QoS cgroup configuration")
+			glog.V(4).Infof("[ContainerManager]: Updated QoS cgroup configuration")
 			return nil
 		}
 
@@ -330,12 +330,12 @@ func (m *qosContainerManagerImpl) UpdateCgroups() error {
 	for _, config := range qosConfigs {
 		err := m.cgroupManager.Update(config)
 		if err != nil {
-			klog.Errorf("[ContainerManager]: Failed to update QoS cgroup configuration")
+			glog.Errorf("[ContainerManager]: Failed to update QoS cgroup configuration")
 			return err
 		}
 	}
 
-	klog.V(4).Infof("[ContainerManager]: Updated QoS cgroup configuration")
+	glog.V(4).Infof("[ContainerManager]: Updated QoS cgroup configuration")
 	return nil
 }
 

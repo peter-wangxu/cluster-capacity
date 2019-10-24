@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"testing"
 
-	"sigs.k8s.io/yaml"
+	"github.com/ghodss/yaml"
 
 	"k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"

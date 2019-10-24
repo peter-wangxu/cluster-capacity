@@ -31,7 +31,6 @@ import (
 
 type RESTStorageProvider struct {
 	Authenticator authenticator.Request
-	APIAudiences  authenticator.Audiences
 }
 
 func (p RESTStorageProvider) NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, bool) {
@@ -57,7 +56,7 @@ func (p RESTStorageProvider) NewRESTStorage(apiResourceConfigSource serverstorag
 func (p RESTStorageProvider) v1beta1Storage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) map[string]rest.Storage {
 	storage := map[string]rest.Storage{}
 	// tokenreviews
-	tokenReviewStorage := tokenreview.NewREST(p.Authenticator, p.APIAudiences)
+	tokenReviewStorage := tokenreview.NewREST(p.Authenticator)
 	storage["tokenreviews"] = tokenReviewStorage
 
 	return storage
@@ -66,7 +65,7 @@ func (p RESTStorageProvider) v1beta1Storage(apiResourceConfigSource serverstorag
 func (p RESTStorageProvider) v1Storage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) map[string]rest.Storage {
 	storage := map[string]rest.Storage{}
 	// tokenreviews
-	tokenReviewStorage := tokenreview.NewREST(p.Authenticator, p.APIAudiences)
+	tokenReviewStorage := tokenreview.NewREST(p.Authenticator)
 	storage["tokenreviews"] = tokenReviewStorage
 
 	return storage

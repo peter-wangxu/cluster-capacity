@@ -15,7 +15,6 @@ go_library(
     deps = [
         "//pkg/client/clientset_generated/internalclientset/typed/admissionregistration/internalversion:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/apps/internalversion:go_default_library",
-        "//pkg/client/clientset_generated/internalclientset/typed/auditregistration/internalversion:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/authentication/internalversion:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion:go_default_library",
         "//pkg/client/clientset_generated/internalclientset/typed/autoscaling/internalversion:go_default_library",
@@ -52,7 +51,6 @@ filegroup(
         "//pkg/client/clientset_generated/internalclientset/scheme:all-srcs",
         "//pkg/client/clientset_generated/internalclientset/typed/admissionregistration/internalversion:all-srcs",
         "//pkg/client/clientset_generated/internalclientset/typed/apps/internalversion:all-srcs",
-        "//pkg/client/clientset_generated/internalclientset/typed/auditregistration/internalversion:all-srcs",
         "//pkg/client/clientset_generated/internalclientset/typed/authentication/internalversion:all-srcs",
         "//pkg/client/clientset_generated/internalclientset/typed/authorization/internalversion:all-srcs",
         "//pkg/client/clientset_generated/internalclientset/typed/autoscaling/internalversion:all-srcs",

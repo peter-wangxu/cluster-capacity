@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	batch "k8s.io/api/batch/v1"
 	"k8s.io/api/core/v1"
@@ -71,7 +71,7 @@ type Controller struct {
 // New creates an instance of Controller
 func New(jobInformer batchinformers.JobInformer, client clientset.Interface) *Controller {
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(klog.Infof)
+	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: client.CoreV1().Events("")})
 
 	if client != nil && client.CoreV1().RESTClient().GetRateLimiter() != nil {
@@ -102,8 +102,8 @@ func (tc *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer tc.queue.ShutDown()
 
-	klog.Infof("Starting TTL after finished controller")
-	defer klog.Infof("Shutting down TTL after finished controller")
+	glog.Infof("Starting TTL after finished controller")
+	defer glog.Infof("Shutting down TTL after finished controller")
 
 	if !controller.WaitForCacheSync("TTL after finished", stopCh, tc.jListerSynced) {
 		return
@@ -118,7 +118,7 @@ func (tc *Controller) Run(workers int, stopCh <-chan struct{}) {
 
 func (tc *Controller) addJob(obj interface{}) {
 	job := obj.(*batch.Job)
-	klog.V(4).Infof("Adding job %s/%s", job.Namespace, job.Name)
+	glog.V(4).Infof("Adding job %s/%s", job.Namespace, job.Name)
 
 	if job.DeletionTimestamp == nil && needsCleanup(job) {
 		tc.enqueue(job)
@@ -127,7 +127,7 @@ func (tc *Controller) addJob(obj interface{}) {
 
 func (tc *Controller) updateJob(old, cur interface{}) {
 	job := cur.(*batch.Job)
-	klog.V(4).Infof("Updating job %s/%s", job.Namespace, job.Name)
+	glog.V(4).Infof("Updating job %s/%s", job.Namespace, job.Name)
 
 	if job.DeletionTimestamp == nil && needsCleanup(job) {
 		tc.enqueue(job)
@@ -135,7 +135,7 @@ func (tc *Controller) updateJob(old, cur interface{}) {
 }
 
 func (tc *Controller) enqueue(job *batch.Job) {
-	klog.V(4).Infof("Add job %s/%s to cleanup", job.Namespace, job.Name)
+	glog.V(4).Infof("Add job %s/%s to cleanup", job.Namespace, job.Name)
 	key, err := controller.KeyFunc(job)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", job, err))
@@ -194,7 +194,7 @@ func (tc *Controller) processJob(key string) error {
 		return err
 	}
 
-	klog.V(4).Infof("Checking if Job %s/%s is ready for cleanup", namespace, name)
+	glog.V(4).Infof("Checking if Job %s/%s is ready for cleanup", namespace, name)
 	// Ignore the Jobs that are already deleted or being deleted, or the ones that don't need clean up.
 	job, err := tc.jLister.Jobs(namespace).Get(name)
 	if errors.IsNotFound(err) {
@@ -233,7 +233,7 @@ func (tc *Controller) processJob(key string) error {
 		PropagationPolicy: &policy,
 		Preconditions:     &metav1.Preconditions{UID: &fresh.UID},
 	}
-	klog.V(4).Infof("Cleaning up Job %s/%s", namespace, name)
+	glog.V(4).Infof("Cleaning up Job %s/%s", namespace, name)
 	return tc.client.BatchV1().Jobs(fresh.Namespace).Delete(fresh.Name, options)
 }
 
@@ -284,10 +284,10 @@ func timeLeft(j *batch.Job, since *time.Time) (*time.Duration, error) {
 		return nil, err
 	}
 	if finishAt.UTC().After(since.UTC()) {
-		klog.Warningf("Warning: Found Job %s/%s finished in the future. This is likely due to time skew in the cluster. Job cleanup will be deferred.", j.Namespace, j.Name)
+		glog.Warningf("Warning: Found Job %s/%s finished in the future. This is likely due to time skew in the cluster. Job cleanup will be deferred.", j.Namespace, j.Name)
 	}
 	remaining := expireAt.UTC().Sub(since.UTC())
-	klog.V(4).Infof("Found Job %s/%s finished at %v, remaining TTL %v since %v, TTL will expire at %v", j.Namespace, j.Name, finishAt.UTC(), remaining, since.UTC(), expireAt.UTC())
+	glog.V(4).Infof("Found Job %s/%s finished at %v, remaining TTL %v since %v, TTL will expire at %v", j.Namespace, j.Name, finishAt.UTC(), remaining, since.UTC(), expireAt.UTC())
 	return &remaining, nil
 }
 

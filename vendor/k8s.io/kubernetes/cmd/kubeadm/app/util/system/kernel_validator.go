@@ -29,9 +29,7 @@ import (
 	"regexp"
 	"strings"
 
-	pkgerrors "github.com/pkg/errors"
-	"k8s.io/klog"
-
+	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/errors"
 )
 
@@ -66,7 +64,7 @@ func (k *KernelValidator) Validate(spec SysSpec) (error, error) {
 	helper := KernelValidatorHelperImpl{}
 	release, err := helper.GetKernelReleaseVersion()
 	if err != nil {
-		return nil, pkgerrors.Wrap(err, "failed to get kernel release")
+		return nil, fmt.Errorf("failed to get kernel release: %v", err)
 	}
 	k.kernelRelease = release
 	var errs []error
@@ -80,6 +78,7 @@ func (k *KernelValidator) Validate(spec SysSpec) (error, error) {
 
 // validateKernelVersion validates the kernel version.
 func (k *KernelValidator) validateKernelVersion(kSpec KernelSpec) error {
+	glog.V(1).Info("Validating kernel version")
 	versionRegexps := kSpec.Versions
 	for _, versionRegexp := range versionRegexps {
 		r := regexp.MustCompile(versionRegexp)
@@ -89,14 +88,15 @@ func (k *KernelValidator) validateKernelVersion(kSpec KernelSpec) error {
 		}
 	}
 	k.Reporter.Report("KERNEL_VERSION", k.kernelRelease, bad)
-	return pkgerrors.Errorf("unsupported kernel release: %s", k.kernelRelease)
+	return fmt.Errorf("unsupported kernel release: %s", k.kernelRelease)
 }
 
 // validateKernelConfig validates the kernel configurations.
 func (k *KernelValidator) validateKernelConfig(kSpec KernelSpec) error {
+	glog.V(1).Info("Validating kernel config")
 	allConfig, err := k.getKernelConfig()
 	if err != nil {
-		return pkgerrors.Wrap(err, "failed to parse kernel config")
+		return fmt.Errorf("failed to parse kernel config: %v", err)
 	}
 	return k.validateCachedKernelConfig(allConfig, kSpec)
 }
@@ -165,7 +165,7 @@ func (k *KernelValidator) validateCachedKernelConfig(allConfig map[string]kConfi
 		validateOpt(config, forbidden)
 	}
 	if len(badConfigs) > 0 {
-		return pkgerrors.Errorf("unexpected kernel config: %s", strings.Join(badConfigs, " "))
+		return fmt.Errorf("unexpected kernel config: %s", strings.Join(badConfigs, " "))
 	}
 	return nil
 }
@@ -182,8 +182,6 @@ func (k *KernelValidator) getKernelConfigReader() (io.Reader, error) {
 		"/usr/lib/modules/" + k.kernelRelease + "/config",
 		"/usr/lib/ostree-boot/config-" + k.kernelRelease,
 		"/usr/lib/kernel/config-" + k.kernelRelease,
-		"/usr/src/linux-headers-" + k.kernelRelease + "/.config",
-		"/lib/modules/" + k.kernelRelease + "/build/.config",
 	}
 	configsModule := "configs"
 	modprobeCmd := "modprobe"
@@ -220,14 +218,14 @@ func (k *KernelValidator) getKernelConfigReader() (io.Reader, error) {
 		// config module and check again.
 		output, err := exec.Command(modprobeCmd, configsModule).CombinedOutput()
 		if err != nil {
-			return nil, pkgerrors.Wrapf(err, "unable to load kernel module: %q, output: %q, err",
-				configsModule, output)
+			return nil, fmt.Errorf("unable to load kernel module %q: output - %q, err - %v",
+				configsModule, output, err)
 		}
 		// Unload the kernel config module to make sure the validation have no side effect.
 		defer exec.Command(modprobeCmd, "-r", configsModule).Run()
 		loadModule = true
 	}
-	return nil, pkgerrors.Errorf("no config path in %v is available", possibePaths)
+	return nil, fmt.Errorf("no config path in %v is available", possibePaths)
 }
 
 // getKernelConfig gets kernel config from kernel config file and convert kernel config to internal type.
@@ -254,7 +252,7 @@ func (k *KernelValidator) parseKernelConfig(r io.Reader) (map[string]kConfigOpti
 		}
 		fields := strings.Split(line, "=")
 		if len(fields) != 2 {
-			klog.Errorf("Unexpected fields number in config %q", line)
+			glog.Errorf("Unexpected fields number in config %q", line)
 			continue
 		}
 		config[fields[0]] = kConfigOption(fields[1])

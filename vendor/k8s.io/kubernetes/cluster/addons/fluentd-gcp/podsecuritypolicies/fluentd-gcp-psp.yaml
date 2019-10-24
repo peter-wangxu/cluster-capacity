@@ -20,7 +20,6 @@ spec:
   - 'configMap'
   - 'hostPath'
   - 'secret'
-  - 'projected'
   allowedHostPaths:
     - pathPrefix: /var/log
     - pathPrefix: /var/lib/docker/containers

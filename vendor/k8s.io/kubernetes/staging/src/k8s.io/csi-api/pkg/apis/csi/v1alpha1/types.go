@@ -18,16 +18,6 @@ package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// VolumePluginMechanism is the type of mechanism components should use for volume operations
-type VolumePluginMechanism string
-
-const (
-	// VolumePluginMechanismInTree means components should use the in-tree plugin for volume operations
-	VolumePluginMechanismInTree VolumePluginMechanism = "in-tree"
-	// VolumePluginMechanismCSI means components should use the CSI Driver for volume operations
-	VolumePluginMechanismCSI VolumePluginMechanism = "csi"
-)
-
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -101,56 +91,18 @@ type CSINodeInfo struct {
 	// metadata.name must be the Kubernetes node name.
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// spec is the specification of CSINodeInfo
-	Spec CSINodeInfoSpec `json:"spec"`
-
-	// status is the current status of CSINodeInfo
-	Status CSINodeInfoStatus `json:"status"`
-}
-
-// CSINodeInfoSpec holds information about the specification of all CSI drivers installed on a node
-type CSINodeInfoSpec struct {
-	// drivers is a list of specifications of CSIDriverInfo
-	// +patchMergeKey=name
+	// List of CSI drivers running on the node and their properties.
+	// +patchMergeKey=driver
 	// +patchStrategy=merge
-	Drivers []CSIDriverInfoSpec `json:"drivers" patchStrategy:"merge" patchMergeKey:"name"`
+	CSIDrivers []CSIDriverInfo `json:"csiDrivers" patchStrategy:"merge" patchMergeKey:"driver"`
 }
 
-// CSINodeInfoStatus holds information about the status of all CSI drivers installed on a node
-type CSINodeInfoStatus struct {
-	// drivers is a list of the statuses of CSIDriverInfo
-	// +patchMergeKey=name
-	// +patchStrategy=merge
-	Drivers []CSIDriverInfoStatus `json:"drivers" patchStrategy:"merge" patchMergeKey:"name"`
-}
-
-// CSIDriverInfoStatus holds information about the status of one CSI driver installed on a node
-type CSIDriverInfoStatus struct {
-	// name is the name of the CSI driver that this object refers to.
+// CSIDriverInfo contains information about one CSI driver installed on a node.
+type CSIDriverInfo struct {
+	// driver is the name of the CSI driver that this object refers to.
 	// This MUST be the same name returned by the CSI GetPluginName() call for
 	// that driver.
-	Name string `json:"name"`
-
-	// available is a boolean representing whether the driver has been installed
-	// on this node or not.
-	Available bool `json:"available"`
-
-	// volumePluginMechanism announces what mechanism underlies volume plugins.
-	// It is set by Kubelet. It is used by the attach/detach controller, which
-	// needs to know how to perform attachments. The allowed values are:
-	// * "in-tree": the volume operation (e.g., attach/detach) ought to be
-	//   directly performed by the attach/detach controller.
-	// * "csi-plugin": the attach/detach controller ought to request
-	//   the csi plugin to perform the volume operation rather than perform it directly.
-	VolumePluginMechanism VolumePluginMechanism `json:"volumePluginMechanism"`
-}
-
-// CSIDriverInfoSpec holds information about the specification of one CSI driver installed on a node
-type CSIDriverInfoSpec struct {
-	// name is the name of the CSI driver that this object refers to.
-	// This MUST be the same name returned by the CSI GetPluginName() call for
-	// that driver.
-	Name string `json:"name"`
+	Driver string `json:"driver"`
 
 	// nodeID of the node from the driver point of view.
 	// This field enables Kubernetes to communicate with storage systems that do

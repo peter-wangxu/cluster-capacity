@@ -101,7 +101,7 @@ func newReplicaSet(replicas int, selectorMap map[string]string) *apps.ReplicaSet
 				Spec: v1.PodSpec{
 					Containers: []v1.Container{
 						{
-							Image:                  "foo/bar",
+							Image: "foo/bar",
 							TerminationMessagePath: v1.TerminationMessagePathDefault,
 							ImagePullPolicy:        v1.PullIfNotPresent,
 							SecurityContext:        securitycontext.ValidSecurityContextWithContainerDefaults(),
@@ -1240,8 +1240,10 @@ func TestGetCondition(t *testing.T) {
 	tests := []struct {
 		name string
 
-		status   apps.ReplicaSetStatus
-		condType apps.ReplicaSetConditionType
+		status     apps.ReplicaSetStatus
+		condType   apps.ReplicaSetConditionType
+		condStatus v1.ConditionStatus
+		condReason string
 
 		expected bool
 	}{

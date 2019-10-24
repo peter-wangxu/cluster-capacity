@@ -20,11 +20,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/kubernetes/pkg/kubectl"
+	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-	"k8s.io/kubernetes/pkg/kubectl/generate"
-	generateversioned "k8s.io/kubernetes/pkg/kubectl/generate/versioned"
 	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
-	"k8s.io/kubernetes/pkg/kubectl/util/templates"
 )
 
 var (
@@ -47,7 +46,7 @@ func NewCmdCreateNamespace(f cmdutil.Factory, ioStreams genericclioptions.IOStre
 	}
 
 	cmd := &cobra.Command{
-		Use:                   "namespace NAME [--dry-run]",
+		Use: "namespace NAME [--dry-run]",
 		DisableFlagsInUseLine: true,
 		Aliases:               []string{"ns"},
 		Short:                 i18n.T("Create a namespace with the specified name"),
@@ -63,7 +62,7 @@ func NewCmdCreateNamespace(f cmdutil.Factory, ioStreams genericclioptions.IOStre
 
 	cmdutil.AddApplyAnnotationFlags(cmd)
 	cmdutil.AddValidateFlags(cmd)
-	cmdutil.AddGeneratorFlags(cmd, generateversioned.NamespaceV1GeneratorName)
+	cmdutil.AddGeneratorFlags(cmd, cmdutil.NamespaceV1GeneratorName)
 
 	return cmd
 }
@@ -74,10 +73,10 @@ func (o *NamespaceOpts) Complete(f cmdutil.Factory, cmd *cobra.Command, args []s
 		return err
 	}
 
-	var generator generate.StructuredGenerator
+	var generator kubectl.StructuredGenerator
 	switch generatorName := cmdutil.GetFlagString(cmd, "generator"); generatorName {
-	case generateversioned.NamespaceV1GeneratorName:
-		generator = &generateversioned.NamespaceGeneratorV1{Name: name}
+	case cmdutil.NamespaceV1GeneratorName:
+		generator = &kubectl.NamespaceGeneratorV1{Name: name}
 	default:
 		return errUnsupportedGenerator(cmd, generatorName)
 	}

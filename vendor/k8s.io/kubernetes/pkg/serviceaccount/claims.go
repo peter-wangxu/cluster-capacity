@@ -21,11 +21,11 @@ import (
 	"fmt"
 	"time"
 
-	"gopkg.in/square/go-jose.v2/jwt"
-	"k8s.io/klog"
-
+	"github.com/golang/glog"
 	apiserverserviceaccount "k8s.io/apiserver/pkg/authentication/serviceaccount"
 	"k8s.io/kubernetes/pkg/apis/core"
+
+	"gopkg.in/square/go-jose.v2/jwt"
 )
 
 // time.Now stubbed out to allow testing
@@ -80,13 +80,15 @@ func Claims(sa core.ServiceAccount, pod *core.Pod, secret *core.Secret, expirati
 	return sc, pc
 }
 
-func NewValidator(getter ServiceAccountTokenGetter) Validator {
+func NewValidator(audiences []string, getter ServiceAccountTokenGetter) Validator {
 	return &validator{
+		auds:   audiences,
 		getter: getter,
 	}
 }
 
 type validator struct {
+	auds   []string
 	getter ServiceAccountTokenGetter
 }
 
@@ -95,7 +97,7 @@ var _ = Validator(&validator{})
 func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{}) (*ServiceAccountInfo, error) {
 	private, ok := privateObj.(*privateClaims)
 	if !ok {
-		klog.Errorf("jwt validator expected private claim of type *privateClaims but got: %T", privateObj)
+		glog.Errorf("jwt validator expected private claim of type *privateClaims but got: %T", privateObj)
 		return nil, errors.New("Token could not be validated.")
 	}
 	err := public.Validate(jwt.Expected{
@@ -106,8 +108,21 @@ func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{
 	case err == jwt.ErrExpired:
 		return nil, errors.New("Token has expired.")
 	default:
-		klog.Errorf("unexpected validation error: %T", err)
+		glog.Errorf("unexpected validation error: %T", err)
 		return nil, errors.New("Token could not be validated.")
+	}
+
+	var audValid bool
+
+	for _, aud := range v.auds {
+		audValid = public.Audience.Contains(aud)
+		if audValid {
+			break
+		}
+	}
+
+	if !audValid {
+		return nil, errors.New("Token is invalid for this audience.")
 	}
 
 	namespace := private.Kubernetes.Namespace
@@ -117,15 +132,15 @@ func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{
 	// Make sure service account still exists (name and UID)
 	serviceAccount, err := v.getter.GetServiceAccount(namespace, saref.Name)
 	if err != nil {
-		klog.V(4).Infof("Could not retrieve service account %s/%s: %v", namespace, saref.Name, err)
+		glog.V(4).Infof("Could not retrieve service account %s/%s: %v", namespace, saref.Name, err)
 		return nil, err
 	}
 	if serviceAccount.DeletionTimestamp != nil {
-		klog.V(4).Infof("Service account has been deleted %s/%s", namespace, saref.Name)
+		glog.V(4).Infof("Service account has been deleted %s/%s", namespace, saref.Name)
 		return nil, fmt.Errorf("ServiceAccount %s/%s has been deleted", namespace, saref.Name)
 	}
 	if string(serviceAccount.UID) != saref.UID {
-		klog.V(4).Infof("Service account UID no longer matches %s/%s: %q != %q", namespace, saref.Name, string(serviceAccount.UID), saref.UID)
+		glog.V(4).Infof("Service account UID no longer matches %s/%s: %q != %q", namespace, saref.Name, string(serviceAccount.UID), saref.UID)
 		return nil, fmt.Errorf("ServiceAccount UID (%s) does not match claim (%s)", serviceAccount.UID, saref.UID)
 	}
 
@@ -133,15 +148,15 @@ func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{
 		// Make sure token hasn't been invalidated by deletion of the secret
 		secret, err := v.getter.GetSecret(namespace, secref.Name)
 		if err != nil {
-			klog.V(4).Infof("Could not retrieve bound secret %s/%s for service account %s/%s: %v", namespace, secref.Name, namespace, saref.Name, err)
+			glog.V(4).Infof("Could not retrieve bound secret %s/%s for service account %s/%s: %v", namespace, secref.Name, namespace, saref.Name, err)
 			return nil, errors.New("Token has been invalidated")
 		}
 		if secret.DeletionTimestamp != nil {
-			klog.V(4).Infof("Bound secret is deleted and awaiting removal: %s/%s for service account %s/%s", namespace, secref.Name, namespace, saref.Name)
+			glog.V(4).Infof("Bound secret is deleted and awaiting removal: %s/%s for service account %s/%s", namespace, secref.Name, namespace, saref.Name)
 			return nil, errors.New("Token has been invalidated")
 		}
 		if secref.UID != string(secret.UID) {
-			klog.V(4).Infof("Secret UID no longer matches %s/%s: %q != %q", namespace, secref.Name, string(secret.UID), secref.UID)
+			glog.V(4).Infof("Secret UID no longer matches %s/%s: %q != %q", namespace, secref.Name, string(secret.UID), secref.UID)
 			return nil, fmt.Errorf("Secret UID (%s) does not match claim (%s)", secret.UID, secref.UID)
 		}
 	}
@@ -151,15 +166,15 @@ func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{
 		// Make sure token hasn't been invalidated by deletion of the pod
 		pod, err := v.getter.GetPod(namespace, podref.Name)
 		if err != nil {
-			klog.V(4).Infof("Could not retrieve bound pod %s/%s for service account %s/%s: %v", namespace, podref.Name, namespace, saref.Name, err)
+			glog.V(4).Infof("Could not retrieve bound pod %s/%s for service account %s/%s: %v", namespace, podref.Name, namespace, saref.Name, err)
 			return nil, errors.New("Token has been invalidated")
 		}
 		if pod.DeletionTimestamp != nil {
-			klog.V(4).Infof("Bound pod is deleted and awaiting removal: %s/%s for service account %s/%s", namespace, podref.Name, namespace, saref.Name)
+			glog.V(4).Infof("Bound pod is deleted and awaiting removal: %s/%s for service account %s/%s", namespace, podref.Name, namespace, saref.Name)
 			return nil, errors.New("Token has been invalidated")
 		}
 		if podref.UID != string(pod.UID) {
-			klog.V(4).Infof("Pod UID no longer matches %s/%s: %q != %q", namespace, podref.Name, string(pod.UID), podref.UID)
+			glog.V(4).Infof("Pod UID no longer matches %s/%s: %q != %q", namespace, podref.Name, string(pod.UID), podref.UID)
 			return nil, fmt.Errorf("Pod UID (%s) does not match claim (%s)", pod.UID, podref.UID)
 		}
 		podName = podref.Name

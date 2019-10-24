@@ -57,7 +57,7 @@ func TestHTTPProbeChecker(t *testing.T) {
 			if r.URL.Path == "/" {
 				http.Redirect(w, r, "/new", s)
 			} else if bad && r.URL.Path == "/new" {
-				http.Error(w, "", http.StatusInternalServerError)
+				w.WriteHeader(http.StatusInternalServerError)
 			}
 		}
 	}

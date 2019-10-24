@@ -1,37 +1,9 @@
-load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+package(default_visibility = ["//visibility:public"])
 
-go_library(
-    name = "go_default_library",
-    srcs = [
-        "extender.go",
-        "generic_scheduler.go",
-    ],
-    importpath = "k8s.io/kubernetes/pkg/scheduler/core",
-    visibility = ["//visibility:public"],
-    deps = [
-        "//pkg/scheduler/algorithm:go_default_library",
-        "//pkg/scheduler/algorithm/predicates:go_default_library",
-        "//pkg/scheduler/api:go_default_library",
-        "//pkg/scheduler/cache:go_default_library",
-        "//pkg/scheduler/core/equivalence:go_default_library",
-        "//pkg/scheduler/internal/cache:go_default_library",
-        "//pkg/scheduler/internal/queue:go_default_library",
-        "//pkg/scheduler/metrics:go_default_library",
-        "//pkg/scheduler/util:go_default_library",
-        "//pkg/scheduler/volumebinder:go_default_library",
-        "//staging/src/k8s.io/api/core/v1:go_default_library",
-        "//staging/src/k8s.io/api/policy/v1beta1:go_default_library",
-        "//staging/src/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
-        "//staging/src/k8s.io/apimachinery/pkg/labels:go_default_library",
-        "//staging/src/k8s.io/apimachinery/pkg/util/errors:go_default_library",
-        "//staging/src/k8s.io/apimachinery/pkg/util/net:go_default_library",
-        "//staging/src/k8s.io/apimachinery/pkg/util/sets:go_default_library",
-        "//staging/src/k8s.io/apiserver/pkg/util/trace:go_default_library",
-        "//staging/src/k8s.io/client-go/listers/core/v1:go_default_library",
-        "//staging/src/k8s.io/client-go/rest:go_default_library",
-        "//staging/src/k8s.io/client-go/util/workqueue:go_default_library",
-        "//vendor/k8s.io/klog:go_default_library",
-    ],
+load(
+    "@io_bazel_rules_go//go:def.bzl",
+    "go_library",
+    "go_test",
 )
 
 go_test(
@@ -39,9 +11,11 @@ go_test(
     srcs = [
         "extender_test.go",
         "generic_scheduler_test.go",
+        "scheduling_queue_test.go",
     ],
     embed = [":go_default_library"],
     deps = [
+        "//pkg/api/v1/pod:go_default_library",
         "//pkg/scheduler/algorithm:go_default_library",
         "//pkg/scheduler/algorithm/predicates:go_default_library",
         "//pkg/scheduler/algorithm/priorities:go_default_library",
@@ -49,8 +23,6 @@ go_test(
         "//pkg/scheduler/api:go_default_library",
         "//pkg/scheduler/cache:go_default_library",
         "//pkg/scheduler/core/equivalence:go_default_library",
-        "//pkg/scheduler/internal/cache:go_default_library",
-        "//pkg/scheduler/internal/queue:go_default_library",
         "//pkg/scheduler/testing:go_default_library",
         "//pkg/scheduler/util:go_default_library",
         "//staging/src/k8s.io/api/apps/v1:go_default_library",
@@ -61,6 +33,43 @@ go_test(
         "//staging/src/k8s.io/apimachinery/pkg/util/errors:go_default_library",
         "//staging/src/k8s.io/apimachinery/pkg/util/sets:go_default_library",
         "//staging/src/k8s.io/apimachinery/pkg/util/wait:go_default_library",
+    ],
+)
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "extender.go",
+        "generic_scheduler.go",
+        "scheduling_queue.go",
+    ],
+    importpath = "k8s.io/kubernetes/pkg/scheduler/core",
+    deps = [
+        "//pkg/api/v1/pod:go_default_library",
+        "//pkg/scheduler/algorithm:go_default_library",
+        "//pkg/scheduler/algorithm/predicates:go_default_library",
+        "//pkg/scheduler/algorithm/priorities/util:go_default_library",
+        "//pkg/scheduler/api:go_default_library",
+        "//pkg/scheduler/cache:go_default_library",
+        "//pkg/scheduler/core/equivalence:go_default_library",
+        "//pkg/scheduler/metrics:go_default_library",
+        "//pkg/scheduler/util:go_default_library",
+        "//pkg/scheduler/volumebinder:go_default_library",
+        "//staging/src/k8s.io/api/core/v1:go_default_library",
+        "//staging/src/k8s.io/api/policy/v1beta1:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/labels:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/types:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/util/errors:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/util/net:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/util/sets:go_default_library",
+        "//staging/src/k8s.io/apimachinery/pkg/util/wait:go_default_library",
+        "//staging/src/k8s.io/apiserver/pkg/util/trace:go_default_library",
+        "//staging/src/k8s.io/client-go/listers/core/v1:go_default_library",
+        "//staging/src/k8s.io/client-go/rest:go_default_library",
+        "//staging/src/k8s.io/client-go/tools/cache:go_default_library",
+        "//staging/src/k8s.io/client-go/util/workqueue:go_default_library",
+        "//vendor/github.com/golang/glog:go_default_library",
     ],
 )
 
@@ -78,5 +87,4 @@ filegroup(
         "//pkg/scheduler/core/equivalence:all-srcs",
     ],
     tags = ["automanaged"],
-    visibility = ["//visibility:public"],
 )

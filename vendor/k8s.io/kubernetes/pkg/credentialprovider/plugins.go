@@ -21,7 +21,7 @@ import (
 	"sort"
 	"sync"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // All registered credential providers.
@@ -38,9 +38,9 @@ func RegisterCredentialProvider(name string, provider DockerConfigProvider) {
 	defer providersMutex.Unlock()
 	_, found := providers[name]
 	if found {
-		klog.Fatalf("Credential provider %q was registered twice", name)
+		glog.Fatalf("Credential provider %q was registered twice", name)
 	}
-	klog.V(4).Infof("Registered credential provider %q", name)
+	glog.V(4).Infof("Registered credential provider %q", name)
 	providers[name] = provider
 }
 
@@ -61,7 +61,7 @@ func NewDockerKeyring() DockerKeyring {
 	for _, key := range stringKeys {
 		provider := providers[key]
 		if provider.Enabled() {
-			klog.V(4).Infof("Registering credential provider: %v", key)
+			glog.V(4).Infof("Registering credential provider: %v", key)
 			keyring.Providers = append(keyring.Providers, provider)
 		}
 	}

@@ -18,7 +18,6 @@ package system
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"io"
 	"os"
 )
@@ -66,7 +65,7 @@ func (dr *StreamReporter) Report(key, value string, resultType ValidationResultT
 		c = white
 	}
 	if dr.WriteStream == nil {
-		return errors.New("WriteStream has to be defined for this reporter")
+		return fmt.Errorf("WriteStream has to be defined for this reporter")
 	}
 
 	fmt.Fprintf(dr.WriteStream, "%s: %s\n", colorize(key, white), colorize(value, c))

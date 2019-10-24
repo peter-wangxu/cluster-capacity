@@ -25,7 +25,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 	"k8s.io/utils/exec"
 )
 
@@ -72,7 +72,7 @@ func findPairInterfaceOfContainerInterface(e exec.Interface, containerInterfaceN
 }
 
 func setUpInterface(ifName string) error {
-	klog.V(3).Infof("Enabling hairpin on interface %s", ifName)
+	glog.V(3).Infof("Enabling hairpin on interface %s", ifName)
 	ifPath := path.Join(sysfsNetPath, ifName)
 	if _, err := os.Stat(ifPath); err != nil {
 		return err

@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -111,12 +111,12 @@ func NewAutoRegisterController(apiServiceInformer informers.APIServiceInformer, 
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					klog.V(2).Infof("Couldn't get object from tombstone %#v", obj)
+					glog.V(2).Infof("Couldn't get object from tombstone %#v", obj)
 					return
 				}
 				cast, ok = tombstone.Obj.(*apiregistration.APIService)
 				if !ok {
-					klog.V(2).Infof("Tombstone contained unexpected object: %#v", obj)
+					glog.V(2).Infof("Tombstone contained unexpected object: %#v", obj)
 					return
 				}
 			}
@@ -133,8 +133,8 @@ func (c *autoRegisterController) Run(threadiness int, stopCh <-chan struct{}) {
 	// make sure the work queue is shutdown which will trigger workers to end
 	defer c.queue.ShutDown()
 
-	klog.Infof("Starting autoregister controller")
-	defer klog.Infof("Shutting down autoregister controller")
+	glog.Infof("Starting autoregister controller")
+	defer glog.Infof("Shutting down autoregister controller")
 
 	// wait for your secondary caches to fill before starting your work
 	if !controllers.WaitForCacheSync("autoregister", stopCh, c.apiServiceSynced) {

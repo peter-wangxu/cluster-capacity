@@ -19,7 +19,7 @@ package setdefault
 import (
 	"testing"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -188,7 +188,7 @@ func TestAdmission(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		klog.V(4).Infof("starting test %q", test.name)
+		glog.V(4).Infof("starting test %q", test.name)
 
 		// clone the claim, it's going to be modified
 		claim := test.claim.DeepCopy()
@@ -212,7 +212,7 @@ func TestAdmission(t *testing.T) {
 			nil,   // userInfo
 		)
 		err := ctrl.Admit(attrs)
-		klog.Infof("Got %v", err)
+		glog.Infof("Got %v", err)
 		if err != nil && !test.expectError {
 			t.Errorf("Test %q: unexpected error received: %v", test.name, err)
 		}

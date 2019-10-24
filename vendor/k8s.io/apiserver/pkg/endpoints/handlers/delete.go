@@ -66,7 +66,7 @@ func DeleteResource(r rest.GracefulDeleter, allowsOptions bool, scope RequestSco
 
 		options := &metav1.DeleteOptions{}
 		if allowsOptions {
-			body, err := limitedReadBody(req, scope.MaxRequestBodyBytes)
+			body, err := readBody(req)
 			if err != nil {
 				scope.err(err, w, req)
 				return
@@ -175,7 +175,6 @@ func DeleteResource(r rest.GracefulDeleter, allowsOptions bool, scope RequestSco
 			}
 		}
 
-		scope.Trace = trace
 		transformResponseObject(ctx, scope, req, w, status, result)
 	}
 }
@@ -183,9 +182,6 @@ func DeleteResource(r rest.GracefulDeleter, allowsOptions bool, scope RequestSco
 // DeleteCollection returns a function that will handle a collection deletion
 func DeleteCollection(r rest.CollectionDeleter, checkBody bool, scope RequestScope, admit admission.Interface) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
-		trace := utiltrace.New("Delete " + req.URL.Path)
-		defer trace.LogIfLong(500 * time.Millisecond)
-
 		if isDryRun(req.URL) && !utilfeature.DefaultFeatureGate.Enabled(features.DryRun) {
 			scope.err(errors.NewBadRequest("the dryRun alpha feature is disabled"), w, req)
 			return
@@ -227,7 +223,7 @@ func DeleteCollection(r rest.CollectionDeleter, checkBody bool, scope RequestSco
 
 		options := &metav1.DeleteOptions{}
 		if checkBody {
-			body, err := limitedReadBody(req, scope.MaxRequestBodyBytes)
+			body, err := readBody(req)
 			if err != nil {
 				scope.err(err, w, req)
 				return
@@ -314,7 +310,6 @@ func DeleteCollection(r rest.CollectionDeleter, checkBody bool, scope RequestSco
 			}
 		}
 
-		scope.Trace = trace
 		transformResponseObject(ctx, scope, req, w, http.StatusOK, result)
 	}
 }

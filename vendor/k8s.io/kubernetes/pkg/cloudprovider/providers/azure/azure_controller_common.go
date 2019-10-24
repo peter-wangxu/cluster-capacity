@@ -22,11 +22,11 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-03-01/compute"
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/types"
 	kwait "k8s.io/apimachinery/pkg/util/wait"
-	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/util/keymutex"
 )
 
@@ -99,7 +99,7 @@ func (c *controllerCommon) AttachDisk(isManagedDisk bool, diskName, diskURI stri
 
 	instanceid, err := c.cloud.InstanceID(context.TODO(), nodeName)
 	if err != nil {
-		klog.Warningf("failed to get azure instance id (%v)", err)
+		glog.Warningf("failed to get azure instance id (%v)", err)
 		return fmt.Errorf("failed to get azure instance id for node %q (%v)", nodeName, err)
 	}
 
@@ -108,11 +108,11 @@ func (c *controllerCommon) AttachDisk(isManagedDisk bool, diskName, diskURI stri
 
 	lun, err := c.GetNextDiskLun(nodeName)
 	if err != nil {
-		klog.Warningf("no LUN available for instance %q (%v)", nodeName, err)
+		glog.Warningf("no LUN available for instance %q (%v)", nodeName, err)
 		return fmt.Errorf("all LUNs are used, cannot attach volume (%s, %s) to instance %q (%v)", diskName, diskURI, instanceid, err)
 	}
 
-	klog.V(2).Infof("Trying to attach volume %q lun %d to node %q.", diskURI, lun, nodeName)
+	glog.V(2).Infof("Trying to attach volume %q lun %d to node %q.", diskURI, lun, nodeName)
 	return vmset.AttachDisk(isManagedDisk, diskName, diskURI, nodeName, lun, cachingMode)
 }
 
@@ -125,11 +125,11 @@ func (c *controllerCommon) DetachDisk(diskName, diskURI string, nodeName types.N
 
 	instanceid, err := c.cloud.InstanceID(context.TODO(), nodeName)
 	if err != nil {
-		klog.Warningf("failed to get azure instance id (%v)", err)
+		glog.Warningf("failed to get azure instance id (%v)", err)
 		return fmt.Errorf("failed to get azure instance id for node %q (%v)", nodeName, err)
 	}
 
-	klog.V(2).Infof("detach %v from node %q", diskURI, nodeName)
+	glog.V(2).Infof("detach %v from node %q", diskURI, nodeName)
 
 	// make the lock here as small as possible
 	diskOpMutex.LockKey(instanceid)
@@ -137,7 +137,7 @@ func (c *controllerCommon) DetachDisk(diskName, diskURI string, nodeName types.N
 	diskOpMutex.UnlockKey(instanceid)
 
 	if c.cloud.CloudProviderBackoff && shouldRetryHTTPRequest(resp, err) {
-		klog.V(2).Infof("azureDisk - update backing off: detach disk(%s, %s), err: %v", diskName, diskURI, err)
+		glog.V(2).Infof("azureDisk - update backing off: detach disk(%s, %s), err: %v", diskName, diskURI, err)
 		retryErr := kwait.ExponentialBackoff(c.cloud.requestBackoff(), func() (bool, error) {
 			diskOpMutex.LockKey(instanceid)
 			resp, err := vmset.DetachDisk(diskName, diskURI, nodeName)
@@ -146,13 +146,13 @@ func (c *controllerCommon) DetachDisk(diskName, diskURI string, nodeName types.N
 		})
 		if retryErr != nil {
 			err = retryErr
-			klog.V(2).Infof("azureDisk - update abort backoff: detach disk(%s, %s), err: %v", diskName, diskURI, err)
+			glog.V(2).Infof("azureDisk - update abort backoff: detach disk(%s, %s), err: %v", diskName, diskURI, err)
 		}
 	}
 	if err != nil {
-		klog.Errorf("azureDisk - detach disk(%s, %s) failed, err: %v", diskName, diskURI, err)
+		glog.Errorf("azureDisk - detach disk(%s, %s) failed, err: %v", diskName, diskURI, err)
 	} else {
-		klog.V(2).Infof("azureDisk - detach disk(%s, %s) succeeded", diskName, diskURI)
+		glog.V(2).Infof("azureDisk - detach disk(%s, %s) succeeded", diskName, diskURI)
 	}
 
 	return err
@@ -172,7 +172,7 @@ func (c *controllerCommon) getNodeDataDisks(nodeName types.NodeName) ([]compute.
 func (c *controllerCommon) GetDiskLun(diskName, diskURI string, nodeName types.NodeName) (int32, error) {
 	disks, err := c.getNodeDataDisks(nodeName)
 	if err != nil {
-		klog.Errorf("error of getting data disks for node %q: %v", nodeName, err)
+		glog.Errorf("error of getting data disks for node %q: %v", nodeName, err)
 		return -1, err
 	}
 
@@ -181,7 +181,7 @@ func (c *controllerCommon) GetDiskLun(diskName, diskURI string, nodeName types.N
 			(disk.Vhd != nil && disk.Vhd.URI != nil && diskURI != "" && *disk.Vhd.URI == diskURI) ||
 			(disk.ManagedDisk != nil && *disk.ManagedDisk.ID == diskURI) {
 			// found the disk
-			klog.V(2).Infof("azureDisk - find disk: lun %d name %q uri %q", *disk.Lun, diskName, diskURI)
+			glog.V(2).Infof("azureDisk - find disk: lun %d name %q uri %q", *disk.Lun, diskName, diskURI)
 			return *disk.Lun, nil
 		}
 	}
@@ -192,7 +192,7 @@ func (c *controllerCommon) GetDiskLun(diskName, diskURI string, nodeName types.N
 func (c *controllerCommon) GetNextDiskLun(nodeName types.NodeName) (int32, error) {
 	disks, err := c.getNodeDataDisks(nodeName)
 	if err != nil {
-		klog.Errorf("error of getting data disks for node %q: %v", nodeName, err)
+		glog.Errorf("error of getting data disks for node %q: %v", nodeName, err)
 		return -1, err
 	}
 
@@ -221,7 +221,7 @@ func (c *controllerCommon) DisksAreAttached(diskNames []string, nodeName types.N
 	if err != nil {
 		if err == cloudprovider.InstanceNotFound {
 			// if host doesn't exist, no need to detach
-			klog.Warningf("azureDisk - Cannot find node %q, DisksAreAttached will assume disks %v are not attached to it.",
+			glog.Warningf("azureDisk - Cannot find node %q, DisksAreAttached will assume disks %v are not attached to it.",
 				nodeName, diskNames)
 			return attached, nil
 		}

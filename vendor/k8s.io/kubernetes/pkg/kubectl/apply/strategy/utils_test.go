@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"sigs.k8s.io/yaml"
+	"github.com/ghodss/yaml"
 
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/kubernetes/pkg/kubectl/apply"

@@ -17,7 +17,6 @@ limitations under the License.
 package priorities
 
 import (
-	"context"
 	"sync"
 
 	"k8s.io/api/core/v1"
@@ -30,7 +29,7 @@ import (
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	schedulercache "k8s.io/kubernetes/pkg/scheduler/cache"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // InterPodAffinity contains information to calculate inter pod affinity.
@@ -137,7 +136,7 @@ func (ipa *InterPodAffinity) CalculateInterPodAffinityPriority(pod *v1.Pod, node
 		existingPodNode, err := ipa.info.GetNodeInfo(existingPod.Spec.NodeName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				klog.Errorf("Node not found, %v", existingPod.Spec.NodeName)
+				glog.Errorf("Node not found, %v", existingPod.Spec.NodeName)
 				return nil
 			}
 			return err
@@ -211,7 +210,7 @@ func (ipa *InterPodAffinity) CalculateInterPodAffinityPriority(pod *v1.Pod, node
 			}
 		}
 	}
-	workqueue.ParallelizeUntil(context.TODO(), 16, len(allNodeNames), processNode)
+	workqueue.Parallelize(16, len(allNodeNames), processNode)
 	if pm.firstError != nil {
 		return nil, pm.firstError
 	}
@@ -233,8 +232,8 @@ func (ipa *InterPodAffinity) CalculateInterPodAffinityPriority(pod *v1.Pod, node
 			fScore = float64(schedulerapi.MaxPriority) * ((pm.counts[node.Name] - minCount) / (maxCount - minCount))
 		}
 		result = append(result, schedulerapi.HostPriority{Host: node.Name, Score: int(fScore)})
-		if klog.V(10) {
-			klog.Infof("%v -> %v: InterPodAffinityPriority, Score: (%d)", pod.Name, node.Name, int(fScore))
+		if glog.V(10) {
+			glog.Infof("%v -> %v: InterPodAffinityPriority, Score: (%d)", pod.Name, node.Name, int(fScore))
 		}
 	}
 	return result, nil

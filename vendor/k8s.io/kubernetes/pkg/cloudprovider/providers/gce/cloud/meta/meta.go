@@ -169,9 +169,9 @@ var AllServices = []*ServiceInfo{
 		Object:      "Disk",
 		Service:     "RegionDisks",
 		Resource:    "disks",
-		version:     VersionGA,
+		version:     VersionBeta,
 		keyType:     Regional,
-		serviceType: reflect.TypeOf(&ga.RegionDisksService{}),
+		serviceType: reflect.TypeOf(&beta.RegionDisksService{}),
 		additionalMethods: []string{
 			"Resize",
 		},

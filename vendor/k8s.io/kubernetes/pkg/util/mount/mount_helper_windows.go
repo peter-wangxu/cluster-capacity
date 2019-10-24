@@ -22,7 +22,7 @@ import (
 	"os"
 	"syscall"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // following failure codes are from https://docs.microsoft.com/en-us/windows/desktop/debug/system-error-codes--1300-1699-
@@ -58,7 +58,7 @@ func IsCorruptedMnt(err error) bool {
 	if ee, ok := underlyingError.(syscall.Errno); ok {
 		for _, errno := range errorNoList {
 			if int(ee) == errno {
-				klog.Warningf("IsCorruptedMnt failed with error: %v, error code: %v", err, errno)
+				glog.Warningf("IsCorruptedMnt failed with error: %v, error code: %v", err, errno)
 				return true
 			}
 		}

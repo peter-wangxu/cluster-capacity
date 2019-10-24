@@ -23,11 +23,11 @@ import (
 	"path"
 	"strings"
 
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	"k8s.io/klog"
 	v1qos "k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 	kubefeatures "k8s.io/kubernetes/pkg/features"
 )
@@ -137,10 +137,11 @@ func (m *podContainerManagerImpl) killOnePid(pid int) error {
 			// Hate parsing strings, but
 			// vendor/github.com/opencontainers/runc/libcontainer/
 			// also does this.
-			klog.V(3).Infof("process with pid %v no longer exists", pid)
+			glog.V(3).Infof("process with pid %v no longer exists", pid)
 			return nil
+		} else {
+			return err
 		}
-		return err
 	}
 	return nil
 }
@@ -159,18 +160,18 @@ func (m *podContainerManagerImpl) tryKillingCgroupProcesses(podCgroup CgroupName
 	// We try killing all the pids multiple times
 	for i := 0; i < 5; i++ {
 		if i != 0 {
-			klog.V(3).Infof("Attempt %v failed to kill all unwanted process. Retyring", i)
+			glog.V(3).Infof("Attempt %v failed to kill all unwanted process. Retyring", i)
 		}
 		errlist = []error{}
 		for _, pid := range pidsToKill {
-			klog.V(3).Infof("Attempt to kill process with pid: %v", pid)
+			glog.V(3).Infof("Attempt to kill process with pid: %v", pid)
 			if err := m.killOnePid(pid); err != nil {
-				klog.V(3).Infof("failed to kill process with pid: %v", pid)
+				glog.V(3).Infof("failed to kill process with pid: %v", pid)
 				errlist = append(errlist, err)
 			}
 		}
 		if len(errlist) == 0 {
-			klog.V(3).Infof("successfully killed all unwanted processes.")
+			glog.V(3).Infof("successfully killed all unwanted processes.")
 			return nil
 		}
 	}
@@ -181,7 +182,7 @@ func (m *podContainerManagerImpl) tryKillingCgroupProcesses(podCgroup CgroupName
 func (m *podContainerManagerImpl) Destroy(podCgroup CgroupName) error {
 	// Try killing all the processes attached to the pod cgroup
 	if err := m.tryKillingCgroupProcesses(podCgroup); err != nil {
-		klog.V(3).Infof("failed to kill all the processes attached to the %v cgroups", podCgroup)
+		glog.V(3).Infof("failed to kill all the processes attached to the %v cgroups", podCgroup)
 		return fmt.Errorf("failed to kill all the processes attached to the %v cgroups : %v", podCgroup, err)
 	}
 
@@ -269,7 +270,7 @@ func (m *podContainerManagerImpl) GetAllPodsFromCgroups() (map[types.UID]CgroupN
 				parts := strings.Split(basePath, podCgroupNamePrefix)
 				// the uid is missing, so we log the unexpected cgroup not of form pod<uid>
 				if len(parts) != 2 {
-					klog.Errorf("pod cgroup manager ignoring unexpected cgroup %v because it is not a pod", cgroupfsPath)
+					glog.Errorf("pod cgroup manager ignoring unexpected cgroup %v because it is not a pod", cgroupfsPath)
 					continue
 				}
 				podUID := parts[1]

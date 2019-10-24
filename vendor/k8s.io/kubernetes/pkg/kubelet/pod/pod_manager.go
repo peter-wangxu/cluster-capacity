@@ -19,7 +19,7 @@ package pod
 import (
 	"sync"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -163,7 +163,7 @@ func (pm *basicManager) UpdatePod(pod *v1.Pod) {
 	pm.updatePodsInternal(pod)
 	if pm.checkpointManager != nil {
 		if err := checkpoint.WritePod(pm.checkpointManager, pod); err != nil {
-			klog.Errorf("Error writing checkpoint for pod: %v", pod.GetName())
+			glog.Errorf("Error writing checkpoint for pod: %v", pod.GetName())
 		}
 	}
 }
@@ -226,7 +226,7 @@ func (pm *basicManager) DeletePod(pod *v1.Pod) {
 	}
 	if pm.checkpointManager != nil {
 		if err := checkpoint.DeletePod(pm.checkpointManager, pod); err != nil {
-			klog.Errorf("Error deleting checkpoint for pod: %v", pod.GetName())
+			glog.Errorf("Error deleting checkpoint for pod: %v", pod.GetName())
 		}
 	}
 }

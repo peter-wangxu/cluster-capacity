@@ -21,10 +21,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
+	"github.com/ghodss/yaml"
+	"github.com/golang/glog"
 	"github.com/spf13/cobra"
-	"k8s.io/klog"
-	"sigs.k8s.io/yaml"
 
 	apimachineryversion "k8s.io/apimachinery/pkg/version"
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
@@ -53,7 +52,7 @@ func NewCmdVersion(out io.Writer) *cobra.Command {
 // RunVersion provides the version information of kubeadm in format depending on arguments
 // specified in cobra.Command.
 func RunVersion(out io.Writer, cmd *cobra.Command) error {
-	klog.V(1).Infoln("[version] retrieving version info")
+	glog.V(1).Infoln("[version] retrieving version info")
 	clientVersion := version.Get()
 	v := Version{
 		ClientVersion: &clientVersion,
@@ -62,7 +61,7 @@ func RunVersion(out io.Writer, cmd *cobra.Command) error {
 	const flag = "output"
 	of, err := cmd.Flags().GetString(flag)
 	if err != nil {
-		klog.Fatalf("error accessing flag %s for command %s: %v", flag, cmd.Name(), err)
+		glog.Fatalf("error accessing flag %s for command %s: %v", flag, cmd.Name(), err)
 	}
 
 	switch of {
@@ -83,7 +82,7 @@ func RunVersion(out io.Writer, cmd *cobra.Command) error {
 		}
 		fmt.Fprintln(out, string(y))
 	default:
-		return errors.Errorf("invalid output format: %s", of)
+		return fmt.Errorf("invalid output format: %s", of)
 	}
 
 	return nil

@@ -22,7 +22,7 @@ import (
 	"net"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +44,6 @@ import (
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/master/ports"
-
 	// add the kubernetes feature gates
 	_ "k8s.io/kubernetes/pkg/features"
 )
@@ -52,8 +51,6 @@ import (
 const (
 	// CloudControllerManagerUserAgent is the userAgent name when starting cloud-controller managers.
 	CloudControllerManagerUserAgent = "cloud-controller-manager"
-	// DefaultInsecureCloudControllerManagerPort is the default insecure cloud-controller manager port.
-	DefaultInsecureCloudControllerManagerPort = 0
 )
 
 // CloudControllerManagerOptions is the main context object for the controller manager.
@@ -77,7 +74,7 @@ type CloudControllerManagerOptions struct {
 
 // NewCloudControllerManagerOptions creates a new ExternalCMServer with a default config.
 func NewCloudControllerManagerOptions() (*CloudControllerManagerOptions, error) {
-	componentConfig, err := NewDefaultComponentConfig(DefaultInsecureCloudControllerManagerPort)
+	componentConfig, err := NewDefaultComponentConfig(ports.InsecureCloudControllerManagerPort)
 	if err != nil {
 		return nil, err
 	}
@@ -103,8 +100,7 @@ func NewCloudControllerManagerOptions() (*CloudControllerManagerOptions, error) 
 	s.Authorization.RemoteKubeConfigFileOptional = true
 	s.Authorization.AlwaysAllowPaths = []string{"/healthz"}
 
-	// Set the PairName but leave certificate directory blank to generate in-memory by default
-	s.SecureServing.ServerCert.CertDirectory = ""
+	s.SecureServing.ServerCert.CertDirectory = "/var/run/kubernetes"
 	s.SecureServing.ServerCert.PairName = "cloud-controller-manager"
 	s.SecureServing.BindPort = ports.CloudControllerManagerPort
 
@@ -265,7 +261,7 @@ func (o *CloudControllerManagerOptions) Config() (*cloudcontrollerconfig.Config,
 
 func createRecorder(kubeClient clientset.Interface, userAgent string) record.EventRecorder {
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(klog.Infof)
+	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 	// TODO: remove dependence on the legacyscheme
 	return eventBroadcaster.NewRecorder(legacyscheme.Scheme, v1.EventSource{Component: userAgent})

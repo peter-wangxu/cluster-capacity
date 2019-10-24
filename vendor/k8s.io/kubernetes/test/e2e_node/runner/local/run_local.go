@@ -28,7 +28,7 @@ import (
 	"k8s.io/kubernetes/test/e2e_node/system"
 	"k8s.io/kubernetes/test/utils"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 var buildDependencies = flag.Bool("build-dependencies", true, "If true, build all dependencies.")
@@ -38,22 +38,21 @@ var systemSpecName = flag.String("system-spec-name", "", fmt.Sprintf("The name o
 var extraEnvs = flag.String("extra-envs", "", "The extra environment variables needed for node e2e tests. Format: a list of key=value pairs, e.g., env1=val1,env2=val2")
 
 func main() {
-	klog.InitFlags(nil)
 	flag.Parse()
 
 	// Build dependencies - ginkgo, kubelet and apiserver.
 	if *buildDependencies {
 		if err := builder.BuildGo(); err != nil {
-			klog.Fatalf("Failed to build the dependencies: %v", err)
+			glog.Fatalf("Failed to build the dependencies: %v", err)
 		}
 	}
 
 	// Run node e2e test
 	outputDir, err := utils.GetK8sBuildOutputDir()
 	if err != nil {
-		klog.Fatalf("Failed to get build output directory: %v", err)
+		glog.Fatalf("Failed to get build output directory: %v", err)
 	}
-	klog.Infof("Got build output dir: %v", outputDir)
+	glog.Infof("Got build output dir: %v", outputDir)
 	ginkgo := filepath.Join(outputDir, "ginkgo")
 	test := filepath.Join(outputDir, "e2e_node.test")
 
@@ -61,19 +60,19 @@ func main() {
 	if *systemSpecName != "" {
 		rootDir, err := utils.GetK8sRootDir()
 		if err != nil {
-			klog.Fatalf("Failed to get k8s root directory: %v", err)
+			glog.Fatalf("Failed to get k8s root directory: %v", err)
 		}
 		systemSpecFile := filepath.Join(rootDir, system.SystemSpecPath, *systemSpecName+".yaml")
 		args = append(args, fmt.Sprintf("--system-spec-name=%s --system-spec-file=%s --extra-envs=%s", *systemSpecName, systemSpecFile, *extraEnvs))
 	}
 	if err := runCommand(ginkgo, args...); err != nil {
-		klog.Exitf("Test failed: %v", err)
+		glog.Exitf("Test failed: %v", err)
 	}
 	return
 }
 
 func runCommand(name string, args ...string) error {
-	klog.Infof("Running command: %v %v", name, strings.Join(args, " "))
+	glog.Infof("Running command: %v %v", name, strings.Join(args, " "))
 	cmd := exec.Command("sudo", "sh", "-c", strings.Join(append([]string{name}, args...), " "))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

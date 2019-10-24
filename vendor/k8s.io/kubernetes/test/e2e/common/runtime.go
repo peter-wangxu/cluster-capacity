@@ -37,12 +37,7 @@ var _ = framework.KubeDescribe("Container Runtime", func() {
 	Describe("blackbox test", func() {
 		Context("when starting a container that exits", func() {
 
-			/*
-				Release : v1.13
-				Testname: Container Runtime, Restart Policy, Pod Phases
-				Description: If the restart policy is set to ‘Always’, Pod MUST be restarted when terminated, If restart policy is ‘OnFailure’, Pod MUST be started only if it is terminated with non-zero exit code. If the restart policy is ‘Never’, Pod MUST never be restarted. All these three test cases MUST verify the restart counts accordingly.
-			*/
-			framework.ConformanceIt("should run with the expected status [NodeConformance]", func() {
+			It("should run with the expected status [NodeConformance]", func() {
 				restartCountVolumeName := "restart-count"
 				restartCountVolumePath := "/restart-count"
 				testContainer := v1.Container{
@@ -140,9 +135,9 @@ while true; do sleep 1; done
 				{
 					name: "if TerminationMessagePath is set [NodeConformance]",
 					container: v1.Container{
-						Image:                  framework.BusyBoxImage,
-						Command:                []string{"/bin/sh", "-c"},
-						Args:                   []string{"/bin/echo -n DONE > /dev/termination-log"},
+						Image:   framework.BusyBoxImage,
+						Command: []string{"/bin/sh", "-c"},
+						Args:    []string{"/bin/echo -n DONE > /dev/termination-log"},
 						TerminationMessagePath: "/dev/termination-log",
 						SecurityContext: &v1.SecurityContext{
 							RunAsUser: &rootUser,
@@ -155,9 +150,9 @@ while true; do sleep 1; done
 				{
 					name: "if TerminationMessagePath is set as non-root user and at a non-default path [NodeConformance]",
 					container: v1.Container{
-						Image:                  framework.BusyBoxImage,
-						Command:                []string{"/bin/sh", "-c"},
-						Args:                   []string{"/bin/echo -n DONE > /dev/termination-custom-log"},
+						Image:   framework.BusyBoxImage,
+						Command: []string{"/bin/sh", "-c"},
+						Args:    []string{"/bin/echo -n DONE > /dev/termination-custom-log"},
 						TerminationMessagePath: "/dev/termination-custom-log",
 						SecurityContext: &v1.SecurityContext{
 							RunAsUser: &nonRootUser,
@@ -170,9 +165,9 @@ while true; do sleep 1; done
 				{
 					name: "from log output if TerminationMessagePolicy FallbackToLogOnError is set [NodeConformance]",
 					container: v1.Container{
-						Image:                    framework.BusyBoxImage,
-						Command:                  []string{"/bin/sh", "-c"},
-						Args:                     []string{"/bin/echo -n DONE; /bin/false"},
+						Image:   framework.BusyBoxImage,
+						Command: []string{"/bin/sh", "-c"},
+						Args:    []string{"/bin/echo -n DONE; /bin/false"},
 						TerminationMessagePath:   "/dev/termination-log",
 						TerminationMessagePolicy: v1.TerminationMessageFallbackToLogsOnError,
 					},
@@ -183,9 +178,9 @@ while true; do sleep 1; done
 				{
 					name: "as empty when pod succeeds and TerminationMessagePolicy FallbackToLogOnError is set [NodeConformance]",
 					container: v1.Container{
-						Image:                    framework.BusyBoxImage,
-						Command:                  []string{"/bin/sh", "-c"},
-						Args:                     []string{"/bin/echo DONE; /bin/true"},
+						Image:   framework.BusyBoxImage,
+						Command: []string{"/bin/sh", "-c"},
+						Args:    []string{"/bin/echo DONE; /bin/true"},
 						TerminationMessagePath:   "/dev/termination-log",
 						TerminationMessagePolicy: v1.TerminationMessageFallbackToLogsOnError,
 					},
@@ -196,9 +191,9 @@ while true; do sleep 1; done
 				{
 					name: "from file when pod succeeds and TerminationMessagePolicy FallbackToLogOnError is set [NodeConformance]",
 					container: v1.Container{
-						Image:                    framework.BusyBoxImage,
-						Command:                  []string{"/bin/sh", "-c"},
-						Args:                     []string{"/bin/echo -n OK > /dev/termination-log; /bin/echo DONE; /bin/true"},
+						Image:   framework.BusyBoxImage,
+						Command: []string{"/bin/sh", "-c"},
+						Args:    []string{"/bin/echo -n OK > /dev/termination-log; /bin/echo DONE; /bin/true"},
 						TerminationMessagePath:   "/dev/termination-log",
 						TerminationMessagePolicy: v1.TerminationMessageFallbackToLogsOnError,
 					},
@@ -276,25 +271,25 @@ while true; do sleep 1; done
 				},
 				{
 					description: "should be able to pull image from gcr.io",
-					image:       "gcr.io/google-containers/debian-base:0.4.0",
+					image:       "k8s.gcr.io/alpine-with-bash:1.0",
 					phase:       v1.PodRunning,
 					waiting:     false,
 				},
 				{
 					description: "should be able to pull image from docker hub",
-					image:       "alpine:3.7",
+					image:       "alpine:3.1",
 					phase:       v1.PodRunning,
 					waiting:     false,
 				},
 				{
 					description: "should not be able to pull from private registry without secret",
-					image:       "gcr.io/authenticated-image-pulling/alpine:3.7",
+					image:       "gcr.io/authenticated-image-pulling/alpine:3.1",
 					phase:       v1.PodPending,
 					waiting:     true,
 				},
 				{
 					description: "should be able to pull from private registry with secret",
-					image:       "gcr.io/authenticated-image-pulling/alpine:3.7",
+					image:       "gcr.io/authenticated-image-pulling/alpine:3.1",
 					secret:      true,
 					phase:       v1.PodRunning,
 					waiting:     false,

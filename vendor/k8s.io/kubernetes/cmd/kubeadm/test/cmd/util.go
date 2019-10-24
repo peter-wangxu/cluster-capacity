@@ -18,10 +18,9 @@ package kubeadm
 
 import (
 	"bytes"
+	"fmt"
 	"os/exec"
 	"testing"
-
-	"github.com/pkg/errors"
 
 	"github.com/spf13/cobra"
 )
@@ -29,22 +28,17 @@ import (
 // Forked from test/e2e/framework because the e2e framework is quite bloated
 // for our purposes here, and modified to remove undesired logging.
 
-func runCmdNoWrap(command string, args ...string) (string, string, error) {
+// RunCmd is a utility function for kubeadm testing that executes a specified command
+func RunCmd(command string, args ...string) (string, string, error) {
 	var bout, berr bytes.Buffer
 	cmd := exec.Command(command, args...)
 	cmd.Stdout = &bout
 	cmd.Stderr = &berr
 	err := cmd.Run()
 	stdout, stderr := bout.String(), berr.String()
-	return stdout, stderr, err
-}
-
-// RunCmd is a utility function for kubeadm testing that executes a specified command
-func RunCmd(command string, args ...string) (string, string, error) {
-	stdout, stderr, err := runCmdNoWrap(command, args...)
 	if err != nil {
-		return stdout, stderr, errors.Wrapf(err, "error running %s %v; \nstdout %q, \nstderr %q, \ngot error",
-			command, args, stdout, stderr)
+		return "", "", fmt.Errorf("error running %s %v; \ngot error %v, \nstdout %q, \nstderr %q",
+			command, args, err, stdout, stderr)
 	}
 	return stdout, stderr, nil
 }

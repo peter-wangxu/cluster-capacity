@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"k8s.io/api/core/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	policy "k8s.io/api/policy/v1beta1"
 	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -78,7 +79,9 @@ var _ = SIGDescribe("PodSecurityPolicy", func() {
 		expectForbidden(err)
 	})
 
-	It("should enforce the restricted policy.PodSecurityPolicy", func() {
+	// TODO: merge tests for extensions/policy API groups when PSP will be completely moved out of the extensions
+
+	It("should enforce the restricted extensions.PodSecurityPolicy", func() {
 		By("Creating & Binding a restricted policy for the test service account")
 		_, cleanup := createAndBindPSP(f, restrictedPSP("restrictive"))
 		defer cleanup()
@@ -94,12 +97,50 @@ var _ = SIGDescribe("PodSecurityPolicy", func() {
 		})
 	})
 
-	It("should allow pods under the privileged policy.PodSecurityPolicy", func() {
+	It("should enforce the restricted policy.PodSecurityPolicy", func() {
+		By("Creating & Binding a restricted policy for the test service account")
+		_, cleanup := createAndBindPSPInPolicy(f, restrictedPSPInPolicy("restrictive"))
+		defer cleanup()
+
+		By("Running a restricted pod")
+		pod, err := c.CoreV1().Pods(ns).Create(restrictedPod("allowed"))
+		framework.ExpectNoError(err)
+		framework.ExpectNoError(framework.WaitForPodNameRunningInNamespace(c, pod.Name, pod.Namespace))
+
+		testPrivilegedPods(func(pod *v1.Pod) {
+			_, err := c.CoreV1().Pods(ns).Create(pod)
+			expectForbidden(err)
+		})
+	})
+
+	It("should allow pods under the privileged extensions.PodSecurityPolicy", func() {
 		By("Creating & Binding a privileged policy for the test service account")
 		// Ensure that the permissive policy is used even in the presence of the restricted policy.
 		_, cleanup := createAndBindPSP(f, restrictedPSP("restrictive"))
 		defer cleanup()
-		expectedPSP, cleanup := createAndBindPSP(f, privilegedPSP("permissive"))
+		expectedPSP, cleanup := createAndBindPSP(f, framework.PrivilegedPSP("permissive"))
+		defer cleanup()
+
+		testPrivilegedPods(func(pod *v1.Pod) {
+			p, err := c.CoreV1().Pods(ns).Create(pod)
+			framework.ExpectNoError(err)
+			framework.ExpectNoError(framework.WaitForPodNameRunningInNamespace(c, p.Name, p.Namespace))
+
+			// Verify expected PSP was used.
+			p, err = c.CoreV1().Pods(ns).Get(p.Name, metav1.GetOptions{})
+			framework.ExpectNoError(err)
+			validated, found := p.Annotations[psputil.ValidatedPSPAnnotation]
+			Expect(found).To(BeTrue(), "PSP annotation not found")
+			Expect(validated).To(Equal(expectedPSP.Name), "Unexpected validated PSP")
+		})
+	})
+
+	It("should allow pods under the privileged policy.PodSecurityPolicy", func() {
+		By("Creating & Binding a privileged policy for the test service account")
+		// Ensure that the permissive policy is used even in the presence of the restricted policy.
+		_, cleanup := createAndBindPSPInPolicy(f, restrictedPSPInPolicy("restrictive"))
+		defer cleanup()
+		expectedPSP, cleanup := createAndBindPSPInPolicy(f, privilegedPSPInPolicy("permissive"))
 		defer cleanup()
 
 		testPrivilegedPods(func(pod *v1.Pod) {
@@ -188,8 +229,49 @@ func testPrivilegedPods(tester func(pod *v1.Pod)) {
 	})
 }
 
-// createAndBindPSP creates a PSP in the policy API group.
-func createAndBindPSP(f *framework.Framework, pspTemplate *policy.PodSecurityPolicy) (psp *policy.PodSecurityPolicy, cleanup func()) {
+func createAndBindPSP(f *framework.Framework, pspTemplate *extensionsv1beta1.PodSecurityPolicy) (psp *extensionsv1beta1.PodSecurityPolicy, cleanup func()) {
+	// Create the PodSecurityPolicy object.
+	psp = pspTemplate.DeepCopy()
+	// Add the namespace to the name to ensure uniqueness and tie it to the namespace.
+	ns := f.Namespace.Name
+	name := fmt.Sprintf("%s-%s", ns, psp.Name)
+	psp.Name = name
+	psp, err := f.ClientSet.ExtensionsV1beta1().PodSecurityPolicies().Create(psp)
+	framework.ExpectNoError(err, "Failed to create PSP")
+
+	// Create the Role to bind it to the namespace.
+	_, err = f.ClientSet.RbacV1beta1().Roles(ns).Create(&rbacv1beta1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Rules: []rbacv1beta1.PolicyRule{{
+			APIGroups:     []string{"extensions"},
+			Resources:     []string{"podsecuritypolicies"},
+			ResourceNames: []string{name},
+			Verbs:         []string{"use"},
+		}},
+	})
+	framework.ExpectNoError(err, "Failed to create PSP role")
+
+	// Bind the role to the namespace.
+	framework.BindRoleInNamespace(f.ClientSet.RbacV1beta1(), name, ns, rbacv1beta1.Subject{
+		Kind:      rbacv1beta1.ServiceAccountKind,
+		Namespace: ns,
+		Name:      "default",
+	})
+	framework.ExpectNoError(framework.WaitForNamedAuthorizationUpdate(f.ClientSet.AuthorizationV1beta1(),
+		serviceaccount.MakeUsername(ns, "default"), ns, "use", name,
+		schema.GroupResource{Group: "extensions", Resource: "podsecuritypolicies"}, true))
+
+	return psp, func() {
+		// Cleanup non-namespaced PSP object.
+		f.ClientSet.ExtensionsV1beta1().PodSecurityPolicies().Delete(name, &metav1.DeleteOptions{})
+	}
+}
+
+// createAndBindPSPInPolicy creates a PSP in the policy API group (unlike createAndBindPSP()).
+// TODO: merge these functions when PSP will be completely moved out of the extensions
+func createAndBindPSPInPolicy(f *framework.Framework, pspTemplate *policy.PodSecurityPolicy) (psp *policy.PodSecurityPolicy, cleanup func()) {
 	// Create the PodSecurityPolicy object.
 	psp = pspTemplate.DeepCopy()
 	// Add the namespace to the name to ensure uniqueness and tie it to the namespace.
@@ -252,7 +334,8 @@ func restrictedPod(name string) *v1.Pod {
 }
 
 // privilegedPSPInPolicy creates a PodSecurityPolicy (in the "policy" API Group) that allows everything.
-func privilegedPSP(name string) *policy.PodSecurityPolicy {
+// TODO: replace by PrivilegedPSP when PSP will be completely moved out of the extensions
+func privilegedPSPInPolicy(name string) *policy.PodSecurityPolicy {
 	return &policy.PodSecurityPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
@@ -285,7 +368,8 @@ func privilegedPSP(name string) *policy.PodSecurityPolicy {
 }
 
 // restrictedPSPInPolicy creates a PodSecurityPolicy (in the "policy" API Group) that is most strict.
-func restrictedPSP(name string) *policy.PodSecurityPolicy {
+// TODO: replace by restrictedPSP when PSP will be completely moved out of the extensions
+func restrictedPSPInPolicy(name string) *policy.PodSecurityPolicy {
 	return &policy.PodSecurityPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -333,6 +417,61 @@ func restrictedPSP(name string) *policy.PodSecurityPolicy {
 			},
 			FSGroup: policy.FSGroupStrategyOptions{
 				Rule: policy.FSGroupStrategyRunAsAny,
+			},
+			ReadOnlyRootFilesystem: false,
+		},
+	}
+}
+
+// restrictedPSP creates a PodSecurityPolicy that is most strict.
+func restrictedPSP(name string) *extensionsv1beta1.PodSecurityPolicy {
+	return &extensionsv1beta1.PodSecurityPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Annotations: map[string]string{
+				seccomp.AllowedProfilesAnnotationKey:  v1.SeccompProfileRuntimeDefault,
+				seccomp.DefaultProfileAnnotationKey:   v1.SeccompProfileRuntimeDefault,
+				apparmor.AllowedProfilesAnnotationKey: apparmor.ProfileRuntimeDefault,
+				apparmor.DefaultProfileAnnotationKey:  apparmor.ProfileRuntimeDefault,
+			},
+		},
+		Spec: extensionsv1beta1.PodSecurityPolicySpec{
+			Privileged:               false,
+			AllowPrivilegeEscalation: utilpointer.BoolPtr(false),
+			RequiredDropCapabilities: []v1.Capability{
+				"AUDIT_WRITE",
+				"CHOWN",
+				"DAC_OVERRIDE",
+				"FOWNER",
+				"FSETID",
+				"KILL",
+				"MKNOD",
+				"NET_RAW",
+				"SETGID",
+				"SETUID",
+				"SYS_CHROOT",
+			},
+			Volumes: []extensionsv1beta1.FSType{
+				extensionsv1beta1.ConfigMap,
+				extensionsv1beta1.EmptyDir,
+				extensionsv1beta1.PersistentVolumeClaim,
+				"projected",
+				extensionsv1beta1.Secret,
+			},
+			HostNetwork: false,
+			HostIPC:     false,
+			HostPID:     false,
+			RunAsUser: extensionsv1beta1.RunAsUserStrategyOptions{
+				Rule: extensionsv1beta1.RunAsUserStrategyMustRunAsNonRoot,
+			},
+			SELinux: extensionsv1beta1.SELinuxStrategyOptions{
+				Rule: extensionsv1beta1.SELinuxStrategyRunAsAny,
+			},
+			SupplementalGroups: extensionsv1beta1.SupplementalGroupsStrategyOptions{
+				Rule: extensionsv1beta1.SupplementalGroupsStrategyRunAsAny,
+			},
+			FSGroup: extensionsv1beta1.FSGroupStrategyOptions{
+				Rule: extensionsv1beta1.FSGroupStrategyRunAsAny,
 			},
 			ReadOnlyRootFilesystem: false,
 		},

@@ -19,11 +19,10 @@ package metrics
 import (
 	"sync"
 
+	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/kubelet/volumemanager/cache"
 	"k8s.io/kubernetes/pkg/volume"
-	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 )
 
 const (
@@ -86,7 +85,7 @@ func (c *totalVolumesCollector) Collect(ch chan<- prometheus.Metric) {
 				pluginName,
 				stateName)
 			if err != nil {
-				klog.Warningf("Failed to create metric : %v", err)
+				glog.Warningf("Failed to create metric : %v", err)
 			}
 			ch <- metric
 		}
@@ -96,7 +95,7 @@ func (c *totalVolumesCollector) Collect(ch chan<- prometheus.Metric) {
 func (c *totalVolumesCollector) getVolumeCount() volumeCount {
 	counter := make(volumeCount)
 	for _, mountedVolume := range c.asw.GetMountedVolumes() {
-		pluginName := volumeutil.GetFullQualifiedPluginNameForVolume(mountedVolume.PluginName, mountedVolume.VolumeSpec)
+		pluginName := mountedVolume.PluginName
 		if pluginName == "" {
 			pluginName = pluginNameNotAvailable
 		}
@@ -106,7 +105,7 @@ func (c *totalVolumesCollector) getVolumeCount() volumeCount {
 	for _, volumeToMount := range c.dsw.GetVolumesToMount() {
 		pluginName := pluginNameNotAvailable
 		if plugin, err := c.pluginMgr.FindPluginBySpec(volumeToMount.VolumeSpec); err == nil {
-			pluginName = volumeutil.GetFullQualifiedPluginNameForVolume(plugin.GetPluginName(), volumeToMount.VolumeSpec)
+			pluginName = plugin.GetPluginName()
 		}
 		counter.add("desired_state_of_world", pluginName)
 	}

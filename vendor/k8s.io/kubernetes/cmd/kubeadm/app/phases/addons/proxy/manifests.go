@@ -80,7 +80,6 @@ spec:
         command:
         - /usr/local/bin/kube-proxy
         - --config=/var/lib/kube-proxy/{{ .ProxyConfigMapKey }}
-        - --hostname-override=$(NODE_NAME)
         securityContext:
           privileged: true
         volumeMounts:
@@ -92,11 +91,6 @@ spec:
         - mountPath: /lib/modules
           name: lib-modules
           readOnly: true
-        env:
-          - name: NODE_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: spec.nodeName
       hostNetwork: true
       serviceAccountName: kube-proxy
       volumes:

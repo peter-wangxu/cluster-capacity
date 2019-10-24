@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
-	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/klog"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/cloudprovider/providers/vsphere"
 	"k8s.io/kubernetes/pkg/cloudprovider/providers/vsphere/vclib"
 	"k8s.io/kubernetes/pkg/volume"
@@ -70,7 +70,6 @@ type VolumeSpec struct {
 	Fstype            string
 	StoragePolicyID   string
 	StoragePolicyName string
-	Labels            map[string]string
 }
 
 func verifyDevicePath(path string) (string, error) {
@@ -84,7 +83,7 @@ func verifyDevicePath(path string) (string, error) {
 }
 
 // CreateVolume creates a vSphere volume.
-func (util *VsphereDiskUtil) CreateVolume(v *vsphereVolumeProvisioner, selectedZone []string) (volSpec *VolumeSpec, err error) {
+func (util *VsphereDiskUtil) CreateVolume(v *vsphereVolumeProvisioner) (volSpec *VolumeSpec, err error) {
 	var fstype string
 	cloud, err := getCloudProvider(v.plugin.host.GetCloudProvider())
 	if err != nil {
@@ -105,7 +104,6 @@ func (util *VsphereDiskUtil) CreateVolume(v *vsphereVolumeProvisioner, selectedZ
 		Name:       name,
 	}
 
-	volumeOptions.Zone = selectedZone
 	// Apply Parameters (case-insensitive). We leave validation of
 	// the values to the cloud provider.
 	for parameter, value := range v.options.Parameters {
@@ -116,10 +114,10 @@ func (util *VsphereDiskUtil) CreateVolume(v *vsphereVolumeProvisioner, selectedZ
 			volumeOptions.Datastore = value
 		case volume.VolumeParameterFSType:
 			fstype = value
-			klog.V(4).Infof("Setting fstype as %q", fstype)
+			glog.V(4).Infof("Setting fstype as %q", fstype)
 		case StoragePolicyName:
 			volumeOptions.StoragePolicyName = value
-			klog.V(4).Infof("Setting StoragePolicyName as %q", volumeOptions.StoragePolicyName)
+			glog.V(4).Infof("Setting StoragePolicyName as %q", volumeOptions.StoragePolicyName)
 		case HostFailuresToTolerateCapability, ForceProvisioningCapability,
 			CacheReservationCapability, DiskStripesCapability,
 			ObjectSpaceReservationCapability, IopsLimitCapability:
@@ -139,7 +137,7 @@ func (util *VsphereDiskUtil) CreateVolume(v *vsphereVolumeProvisioner, selectedZ
 		}
 		volumeOptions.VSANStorageProfileData = "(" + volumeOptions.VSANStorageProfileData + ")"
 	}
-	klog.V(4).Infof("VSANStorageProfileData in vsphere volume %q", volumeOptions.VSANStorageProfileData)
+	glog.V(4).Infof("VSANStorageProfileData in vsphere volume %q", volumeOptions.VSANStorageProfileData)
 	// TODO: implement PVC.Selector parsing
 	if v.options.PVC.Spec.Selector != nil {
 		return nil, fmt.Errorf("claim.Spec.Selector is not supported for dynamic provisioning on vSphere")
@@ -149,19 +147,14 @@ func (util *VsphereDiskUtil) CreateVolume(v *vsphereVolumeProvisioner, selectedZ
 	if err != nil {
 		return nil, err
 	}
-	labels, err := cloud.GetVolumeLabels(vmDiskPath)
-	if err != nil {
-		return nil, err
-	}
 	volSpec = &VolumeSpec{
 		Path:              vmDiskPath,
 		Size:              volSizeKiB,
 		Fstype:            fstype,
 		StoragePolicyName: volumeOptions.StoragePolicyName,
 		StoragePolicyID:   volumeOptions.StoragePolicyID,
-		Labels:            labels,
 	}
-	klog.V(2).Infof("Successfully created vsphere volume %s", name)
+	glog.V(2).Infof("Successfully created vsphere volume %s", name)
 	return volSpec, nil
 }
 
@@ -173,10 +166,10 @@ func (util *VsphereDiskUtil) DeleteVolume(vd *vsphereVolumeDeleter) error {
 	}
 
 	if err = cloud.DeleteVolume(vd.volPath); err != nil {
-		klog.V(2).Infof("Error deleting vsphere volume %s: %v", vd.volPath, err)
+		glog.V(2).Infof("Error deleting vsphere volume %s: %v", vd.volPath, err)
 		return err
 	}
-	klog.V(2).Infof("Successfully deleted vsphere volume %s", vd.volPath)
+	glog.V(2).Infof("Successfully deleted vsphere volume %s", vd.volPath)
 	return nil
 }
 
@@ -191,7 +184,7 @@ func getVolPathfromVolumeName(deviceMountPath string) string {
 
 func getCloudProvider(cloud cloudprovider.Interface) (*vsphere.VSphere, error) {
 	if cloud == nil {
-		klog.Errorf("Cloud provider not initialized properly")
+		glog.Errorf("Cloud provider not initialized properly")
 		return nil, errors.New("Cloud provider not initialized properly")
 	}
 

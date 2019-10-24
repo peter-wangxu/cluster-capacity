@@ -17,7 +17,6 @@ limitations under the License.
 package deployment
 
 import (
-	"math"
 	"testing"
 	"time"
 
@@ -394,16 +393,6 @@ func TestDeploymentController_cleanupDeployment(t *testing.T) {
 			revisionHistoryLimit: 0,
 			expectedDeletions:    0,
 		},
-		{
-			// with unlimited revisionHistoryLimit
-			oldRSs: []*apps.ReplicaSet{
-				newRSWithStatus("foo-1", 0, 0, selector),
-				newRSWithStatus("foo-2", 0, 0, selector),
-				newRSWithStatus("foo-3", 0, 0, selector),
-			},
-			revisionHistoryLimit: math.MaxInt32,
-			expectedDeletions:    0,
-		},
 	}
 
 	for i := range tests {
@@ -429,7 +418,6 @@ func TestDeploymentController_cleanupDeployment(t *testing.T) {
 		defer close(stopCh)
 		informers.Start(stopCh)
 
-		t.Logf(" &test.revisionHistoryLimit: %d", test.revisionHistoryLimit)
 		d := newDeployment("foo", 1, &test.revisionHistoryLimit, nil, nil, map[string]string{"foo": "bar"})
 		controller.cleanupDeployment(test.oldRSs, d)
 

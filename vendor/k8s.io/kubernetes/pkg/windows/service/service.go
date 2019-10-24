@@ -21,7 +21,7 @@ package service
 import (
 	"os"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
@@ -57,7 +57,7 @@ func InitService(serviceName string) error {
 	if err != nil {
 		return err
 	}
-	klog.Infof("Running %s as a Windows service!", serviceName)
+	glog.Infof("Running %s as a Windows service!", serviceName)
 	return nil
 }
 
@@ -67,7 +67,7 @@ func (h *handler) Execute(_ []string, r <-chan svc.ChangeRequest, s chan<- svc.S
 	h.fromsvc <- nil
 
 	s <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown | svc.Accepted(windows.SERVICE_ACCEPT_PARAMCHANGE)}
-	klog.Infof("Service running")
+	glog.Infof("Service running")
 Loop:
 	for {
 		select {

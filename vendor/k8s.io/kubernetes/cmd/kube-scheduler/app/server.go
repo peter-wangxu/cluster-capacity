@@ -39,8 +39,6 @@ import (
 	"k8s.io/apiserver/pkg/server/mux"
 	"k8s.io/apiserver/pkg/server/routes"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	apiserverflag "k8s.io/apiserver/pkg/util/flag"
-	"k8s.io/apiserver/pkg/util/globalflag"
 	storageinformers "k8s.io/client-go/informers/storage/v1"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -61,16 +59,16 @@ import (
 	"k8s.io/kubernetes/pkg/version"
 	"k8s.io/kubernetes/pkg/version/verflag"
 
+	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
-	"k8s.io/klog"
 )
 
 // NewSchedulerCommand creates a *cobra.Command object with default parameters
 func NewSchedulerCommand() *cobra.Command {
 	opts, err := options.NewOptions()
 	if err != nil {
-		klog.Fatalf("unable to initialize command options: %v", err)
+		glog.Fatalf("unable to initialize command options: %v", err)
 	}
 
 	cmd := &cobra.Command{
@@ -83,71 +81,51 @@ constraints, affinity and anti-affinity specifications, data locality, inter-wor
 interference, deadlines, and so on. Workload-specific requirements will be exposed
 through the API as necessary.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if err := runCommand(cmd, args, opts); err != nil {
+			verflag.PrintAndExitIfRequested()
+			utilflag.PrintFlags(cmd.Flags())
+
+			if len(args) != 0 {
+				fmt.Fprint(os.Stderr, "arguments are not supported\n")
+			}
+
+			if errs := opts.Validate(); len(errs) > 0 {
+				fmt.Fprintf(os.Stderr, "%v\n", utilerrors.NewAggregate(errs))
+				os.Exit(1)
+			}
+
+			if len(opts.WriteConfigTo) > 0 {
+				if err := options.WriteConfigFile(opts.WriteConfigTo, &opts.ComponentConfig); err != nil {
+					fmt.Fprintf(os.Stderr, "%v\n", err)
+					os.Exit(1)
+				}
+				glog.Infof("Wrote configuration to: %s\n", opts.WriteConfigTo)
+				return
+			}
+
+			c, err := opts.Config()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
+
+			stopCh := make(chan struct{})
+			if err := Run(c.Complete(), stopCh); err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 				os.Exit(1)
 			}
 		},
 	}
-	fs := cmd.Flags()
-	namedFlagSets := opts.Flags()
-	verflag.AddFlags(namedFlagSets.FlagSet("global"))
-	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), cmd.Name())
-	for _, f := range namedFlagSets.FlagSets {
-		fs.AddFlagSet(f)
-	}
 
-	usageFmt := "Usage:\n  %s\n"
-	cols, _, _ := apiserverflag.TerminalSize(cmd.OutOrStdout())
-	cmd.SetUsageFunc(func(cmd *cobra.Command) error {
-		fmt.Fprintf(cmd.OutOrStderr(), usageFmt, cmd.UseLine())
-		apiserverflag.PrintSections(cmd.OutOrStderr(), namedFlagSets, cols)
-		return nil
-	})
-	cmd.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s\n\n"+usageFmt, cmd.Long, cmd.UseLine())
-		apiserverflag.PrintSections(cmd.OutOrStdout(), namedFlagSets, cols)
-	})
+	opts.AddFlags(cmd.Flags())
 	cmd.MarkFlagFilename("config", "yaml", "yml", "json")
 
 	return cmd
 }
 
-// runCommand runs the scheduler.
-func runCommand(cmd *cobra.Command, args []string, opts *options.Options) error {
-	verflag.PrintAndExitIfRequested()
-	utilflag.PrintFlags(cmd.Flags())
-
-	if len(args) != 0 {
-		fmt.Fprint(os.Stderr, "arguments are not supported\n")
-	}
-
-	if errs := opts.Validate(); len(errs) > 0 {
-		fmt.Fprintf(os.Stderr, "%v\n", utilerrors.NewAggregate(errs))
-		os.Exit(1)
-	}
-
-	if len(opts.WriteConfigTo) > 0 {
-		if err := options.WriteConfigFile(opts.WriteConfigTo, &opts.ComponentConfig); err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			os.Exit(1)
-		}
-		klog.Infof("Wrote configuration to: %s\n", opts.WriteConfigTo)
-	}
-
-	c, err := opts.Config()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
-
-	stopCh := make(chan struct{})
-
-	// Get the completed config
-	cc := c.Complete()
-
+// Run runs the Scheduler.
+func Run(c schedulerserverconfig.CompletedConfig, stopCh <-chan struct{}) error {
 	// To help debugging, immediately log version
-	klog.Infof("Version: %+v", version.Get())
+	glog.Infof("Version: %+v", version.Get())
 
 	// Apply algorithms based on feature gates.
 	// TODO: make configurable?
@@ -155,88 +133,56 @@ func runCommand(cmd *cobra.Command, args []string, opts *options.Options) error 
 
 	// Configz registration.
 	if cz, err := configz.New("componentconfig"); err == nil {
-		cz.Set(cc.ComponentConfig)
+		cz.Set(c.ComponentConfig)
 	} else {
 		return fmt.Errorf("unable to register configz: %s", err)
 	}
 
-	return Run(cc, stopCh)
-}
-
-// Run executes the scheduler based on the given configuration. It only return on error or when stopCh is closed.
-func Run(cc schedulerserverconfig.CompletedConfig, stopCh <-chan struct{}) error {
-	var storageClassInformer storageinformers.StorageClassInformer
-	if utilfeature.DefaultFeatureGate.Enabled(features.VolumeScheduling) {
-		storageClassInformer = cc.InformerFactory.Storage().V1().StorageClasses()
-	}
-
-	// Create the scheduler.
-	sched, err := scheduler.New(cc.Client,
-		cc.InformerFactory.Core().V1().Nodes(),
-		cc.PodInformer,
-		cc.InformerFactory.Core().V1().PersistentVolumes(),
-		cc.InformerFactory.Core().V1().PersistentVolumeClaims(),
-		cc.InformerFactory.Core().V1().ReplicationControllers(),
-		cc.InformerFactory.Apps().V1().ReplicaSets(),
-		cc.InformerFactory.Apps().V1().StatefulSets(),
-		cc.InformerFactory.Core().V1().Services(),
-		cc.InformerFactory.Policy().V1beta1().PodDisruptionBudgets(),
-		storageClassInformer,
-		cc.Recorder,
-		cc.ComponentConfig.AlgorithmSource,
-		stopCh,
-		scheduler.WithName(cc.ComponentConfig.SchedulerName),
-		scheduler.WithHardPodAffinitySymmetricWeight(cc.ComponentConfig.HardPodAffinitySymmetricWeight),
-		scheduler.WithEquivalenceClassCacheEnabled(cc.ComponentConfig.EnableContentionProfiling),
-		scheduler.WithPreemptionDisabled(cc.ComponentConfig.DisablePreemption),
-		scheduler.WithPercentageOfNodesToScore(cc.ComponentConfig.PercentageOfNodesToScore),
-		scheduler.WithBindTimeoutSeconds(*cc.ComponentConfig.BindTimeoutSeconds))
+	// Build a scheduler config from the provided algorithm source.
+	schedulerConfig, err := NewSchedulerConfig(c)
 	if err != nil {
 		return err
 	}
 
-	// Prepare the event broadcaster.
-	if cc.Broadcaster != nil && cc.EventClient != nil {
-		cc.Broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: cc.EventClient.Events("")})
-	}
+	// Create the scheduler.
+	sched := scheduler.NewFromConfig(schedulerConfig)
 
-	// Setup healthz checks.
-	var checks []healthz.HealthzChecker
-	if cc.ComponentConfig.LeaderElection.LeaderElect {
-		checks = append(checks, cc.LeaderElection.WatchDog)
+	// Prepare the event broadcaster.
+	if c.Broadcaster != nil && c.EventClient != nil {
+		c.Broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: c.EventClient.Events("")})
 	}
 
 	// Start up the healthz server.
-	if cc.InsecureServing != nil {
-		separateMetrics := cc.InsecureMetricsServing != nil
-		handler := buildHandlerChain(newHealthzHandler(&cc.ComponentConfig, separateMetrics, checks...), nil, nil)
-		if err := cc.InsecureServing.Serve(handler, 0, stopCh); err != nil {
+	if c.InsecureServing != nil {
+		separateMetrics := c.InsecureMetricsServing != nil
+		handler := buildHandlerChain(newHealthzHandler(&c.ComponentConfig, separateMetrics), nil, nil)
+		if err := c.InsecureServing.Serve(handler, 0, stopCh); err != nil {
 			return fmt.Errorf("failed to start healthz server: %v", err)
 		}
 	}
-	if cc.InsecureMetricsServing != nil {
-		handler := buildHandlerChain(newMetricsHandler(&cc.ComponentConfig), nil, nil)
-		if err := cc.InsecureMetricsServing.Serve(handler, 0, stopCh); err != nil {
+	if c.InsecureMetricsServing != nil {
+		handler := buildHandlerChain(newMetricsHandler(&c.ComponentConfig), nil, nil)
+		if err := c.InsecureMetricsServing.Serve(handler, 0, stopCh); err != nil {
 			return fmt.Errorf("failed to start metrics server: %v", err)
 		}
 	}
-	if cc.SecureServing != nil {
-		handler := buildHandlerChain(newHealthzHandler(&cc.ComponentConfig, false, checks...), cc.Authentication.Authenticator, cc.Authorization.Authorizer)
-		if err := cc.SecureServing.Serve(handler, 0, stopCh); err != nil {
+	if c.SecureServing != nil {
+		handler := buildHandlerChain(newHealthzHandler(&c.ComponentConfig, false), c.Authentication.Authenticator, c.Authorization.Authorizer)
+		if err := c.SecureServing.Serve(handler, 0, stopCh); err != nil {
 			// fail early for secure handlers, removing the old error loop from above
 			return fmt.Errorf("failed to start healthz server: %v", err)
 		}
 	}
 
 	// Start all informers.
-	go cc.PodInformer.Informer().Run(stopCh)
-	cc.InformerFactory.Start(stopCh)
+	go c.PodInformer.Informer().Run(stopCh)
+	c.InformerFactory.Start(stopCh)
 
 	// Wait for all caches to sync before scheduling.
-	cc.InformerFactory.WaitForCacheSync(stopCh)
-	controller.WaitForCacheSync("scheduler", stopCh, cc.PodInformer.Informer().HasSynced)
+	c.InformerFactory.WaitForCacheSync(stopCh)
+	controller.WaitForCacheSync("scheduler", stopCh, c.PodInformer.Informer().HasSynced)
 
-	// Prepare a reusable runCommand function.
+	// Prepare a reusable run function.
 	run := func(ctx context.Context) {
 		sched.Run()
 		<-ctx.Done()
@@ -253,15 +199,15 @@ func Run(cc schedulerserverconfig.CompletedConfig, stopCh <-chan struct{}) error
 		}
 	}()
 
-	// If leader election is enabled, runCommand via LeaderElector until done and exit.
-	if cc.LeaderElection != nil {
-		cc.LeaderElection.Callbacks = leaderelection.LeaderCallbacks{
+	// If leader election is enabled, run via LeaderElector until done and exit.
+	if c.LeaderElection != nil {
+		c.LeaderElection.Callbacks = leaderelection.LeaderCallbacks{
 			OnStartedLeading: run,
 			OnStoppedLeading: func() {
 				utilruntime.HandleError(fmt.Errorf("lost master"))
 			},
 		}
-		leaderElector, err := leaderelection.NewLeaderElector(*cc.LeaderElection)
+		leaderElector, err := leaderelection.NewLeaderElector(*c.LeaderElection)
 		if err != nil {
 			return fmt.Errorf("couldn't create leader elector: %v", err)
 		}
@@ -271,7 +217,7 @@ func Run(cc schedulerserverconfig.CompletedConfig, stopCh <-chan struct{}) error
 		return fmt.Errorf("lost lease")
 	}
 
-	// Leader election is disabled, so runCommand inline until done.
+	// Leader election is disabled, so run inline until done.
 	run(ctx)
 	return fmt.Errorf("finished without leader elect")
 }
@@ -283,7 +229,7 @@ func buildHandlerChain(handler http.Handler, authn authenticator.Request, authz 
 
 	handler = genericapifilters.WithRequestInfo(handler, requestInfoResolver)
 	handler = genericapifilters.WithAuthorization(handler, authz, legacyscheme.Codecs)
-	handler = genericapifilters.WithAuthentication(handler, authn, failedHandler, nil)
+	handler = genericapifilters.WithAuthentication(handler, authn, failedHandler)
 	handler = genericapifilters.WithRequestInfo(handler, requestInfoResolver)
 	handler = genericfilters.WithPanicRecovery(handler)
 
@@ -319,9 +265,9 @@ func newMetricsHandler(config *kubeschedulerconfig.KubeSchedulerConfiguration) h
 // newHealthzServer creates a healthz server from the config, and will also
 // embed the metrics handler if the healthz and metrics address configurations
 // are the same.
-func newHealthzHandler(config *kubeschedulerconfig.KubeSchedulerConfiguration, separateMetrics bool, checks ...healthz.HealthzChecker) http.Handler {
+func newHealthzHandler(config *kubeschedulerconfig.KubeSchedulerConfiguration, separateMetrics bool) http.Handler {
 	pathRecorderMux := mux.NewPathRecorderMux("kube-scheduler")
-	healthz.InstallHandler(pathRecorderMux, checks...)
+	healthz.InstallHandler(pathRecorderMux)
 	if !separateMetrics {
 		installMetricHandler(pathRecorderMux)
 	}
@@ -335,7 +281,7 @@ func newHealthzHandler(config *kubeschedulerconfig.KubeSchedulerConfiguration, s
 }
 
 // NewSchedulerConfig creates the scheduler configuration. This is exposed for use by tests.
-func NewSchedulerConfig(s schedulerserverconfig.CompletedConfig) (*factory.Config, error) {
+func NewSchedulerConfig(s schedulerserverconfig.CompletedConfig) (*scheduler.Config, error) {
 	var storageClassInformer storageinformers.StorageClassInformer
 	if utilfeature.DefaultFeatureGate.Enabled(features.VolumeScheduling) {
 		storageClassInformer = s.InformerFactory.Storage().V1().StorageClasses()
@@ -363,7 +309,7 @@ func NewSchedulerConfig(s schedulerserverconfig.CompletedConfig) (*factory.Confi
 	})
 
 	source := s.ComponentConfig.AlgorithmSource
-	var config *factory.Config
+	var config *scheduler.Config
 	switch {
 	case source.Provider != nil:
 		// Create the config from a named algorithm provider.

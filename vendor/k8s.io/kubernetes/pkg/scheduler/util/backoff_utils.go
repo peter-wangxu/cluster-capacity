@@ -24,7 +24,7 @@ import (
 
 	ktypes "k8s.io/apimachinery/pkg/types"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 type clock interface {
@@ -76,7 +76,7 @@ func (b *BackoffEntry) getBackoff(maxDuration time.Duration) time.Duration {
 		newDuration = maxDuration
 	}
 	b.backoff = newDuration
-	klog.V(4).Infof("Backing off %s", duration.String())
+	glog.V(4).Infof("Backing off %s", duration.String())
 	return duration
 }
 

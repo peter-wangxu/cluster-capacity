@@ -21,11 +21,12 @@ import (
 	"io"
 
 	"k8s.io/apiserver/pkg/admission"
-	genericadmissioninitializer "k8s.io/apiserver/pkg/admission/initializer"
-	"k8s.io/client-go/informers"
-	storagev1listers "k8s.io/client-go/listers/storage/v1"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	apihelper "k8s.io/kubernetes/pkg/apis/core/helper"
+	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+	pvlister "k8s.io/kubernetes/pkg/client/listers/core/internalversion"
+	storagelisters "k8s.io/kubernetes/pkg/client/listers/storage/internalversion"
+	kubeapiserveradmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
 )
 
 const (
@@ -43,12 +44,13 @@ func Register(plugins *admission.Plugins) {
 
 var _ admission.Interface = &persistentVolumeClaimResize{}
 var _ admission.ValidationInterface = &persistentVolumeClaimResize{}
-var _ = genericadmissioninitializer.WantsExternalKubeInformerFactory(&persistentVolumeClaimResize{})
+var _ = kubeapiserveradmission.WantsInternalKubeInformerFactory(&persistentVolumeClaimResize{})
 
 type persistentVolumeClaimResize struct {
 	*admission.Handler
 
-	scLister storagev1listers.StorageClassLister
+	pvLister pvlister.PersistentVolumeLister
+	scLister storagelisters.StorageClassLister
 }
 
 func newPlugin() *persistentVolumeClaimResize {
@@ -57,14 +59,21 @@ func newPlugin() *persistentVolumeClaimResize {
 	}
 }
 
-func (pvcr *persistentVolumeClaimResize) SetExternalKubeInformerFactory(f informers.SharedInformerFactory) {
-	scInformer := f.Storage().V1().StorageClasses()
+func (pvcr *persistentVolumeClaimResize) SetInternalKubeInformerFactory(f informers.SharedInformerFactory) {
+	pvcInformer := f.Core().InternalVersion().PersistentVolumes()
+	pvcr.pvLister = pvcInformer.Lister()
+	scInformer := f.Storage().InternalVersion().StorageClasses()
 	pvcr.scLister = scInformer.Lister()
-	pvcr.SetReadyFunc(scInformer.Informer().HasSynced)
+	pvcr.SetReadyFunc(func() bool {
+		return pvcInformer.Informer().HasSynced() && scInformer.Informer().HasSynced()
+	})
 }
 
 // ValidateInitialization ensures lister is set.
 func (pvcr *persistentVolumeClaimResize) ValidateInitialization() error {
+	if pvcr.pvLister == nil {
+		return fmt.Errorf("missing persistent volume lister")
+	}
 	if pvcr.scLister == nil {
 		return fmt.Errorf("missing storageclass lister")
 	}

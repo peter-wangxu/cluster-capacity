@@ -23,8 +23,8 @@ import (
 
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/golang/glog"
 	flag "github.com/spf13/pflag"
-	"k8s.io/klog"
 )
 
 var (
@@ -37,7 +37,7 @@ func main() {
 	flag.Parse()
 
 	if *typeSrc == "" {
-		klog.Fatalf("Please define -s flag as it is the source file")
+		glog.Fatalf("Please define -s flag as it is the source file")
 	}
 
 	var funcOut io.Writer
@@ -46,7 +46,7 @@ func main() {
 	} else {
 		file, err := os.Create(*functionDest)
 		if err != nil {
-			klog.Fatalf("Couldn't open %v: %v", *functionDest, err)
+			glog.Fatalf("Couldn't open %v: %v", *functionDest, err)
 		}
 		defer file.Close()
 		funcOut = file

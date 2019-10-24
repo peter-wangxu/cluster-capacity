@@ -30,31 +30,25 @@ func TestFor(t *testing.T) {
 		{d: kubeadm.JoinConfiguration{}, expect: false},
 		{
 			d: kubeadm.JoinConfiguration{
-				Discovery: kubeadm.Discovery{
-					File: &kubeadm.FileDiscovery{
-						KubeConfigPath: "notnil",
-					},
-				},
+				DiscoveryFile: "notnil",
 			},
 			expect: false,
 		},
 		{
 			d: kubeadm.JoinConfiguration{
-				Discovery: kubeadm.Discovery{
-					File: &kubeadm.FileDiscovery{
-						KubeConfigPath: "https://localhost",
-					},
-				},
+				DiscoveryFile: "https://localhost",
 			},
 			expect: false,
 		},
 		{
 			d: kubeadm.JoinConfiguration{
-				Discovery: kubeadm.Discovery{
-					BootstrapToken: &kubeadm.BootstrapTokenDiscovery{
-						Token: "foo.bar@foobar",
-					},
-				},
+				DiscoveryFile: "notnil",
+			},
+			expect: false,
+		},
+		{
+			d: kubeadm.JoinConfiguration{
+				DiscoveryToken: "foo.bar@foobar",
 			},
 			expect: false,
 		},

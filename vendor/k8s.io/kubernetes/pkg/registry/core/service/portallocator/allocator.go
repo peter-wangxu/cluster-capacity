@@ -24,7 +24,7 @@ import (
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/registry/core/service/allocator"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // Interface manages the allocation of ports out of a range. Interface
@@ -152,7 +152,7 @@ func (r *PortAllocator) ForEach(fn func(int)) {
 func (r *PortAllocator) Release(port int) error {
 	ok, offset := r.contains(port)
 	if !ok {
-		klog.Warningf("port is not in the range when release it. port: %v", port)
+		glog.Warningf("port is not in the range when release it. port: %v", port)
 		return nil
 	}
 

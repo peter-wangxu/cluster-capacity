@@ -24,12 +24,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/golang/glog"
 	"github.com/kardianos/osext"
 	"github.com/xanzy/go-cloudstack/cloudstack"
 	"gopkg.in/gcfg.v1"
 	"k8s.io/apimachinery/pkg/types"
-	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/klog"
+	"k8s.io/kubernetes/pkg/cloudprovider"
+	"k8s.io/kubernetes/pkg/controller"
 )
 
 // ProviderName is the name of this cloud provider.
@@ -98,10 +99,10 @@ func newCSCloud(cfg *CSConfig) (*CSCloud, error) {
 		// In CloudStack your metadata is always served by the DHCP server.
 		dhcpServer, err := findDHCPServer()
 		if err == nil {
-			klog.V(4).Infof("Found metadata server: %v", dhcpServer)
+			glog.V(4).Infof("Found metadata server: %v", dhcpServer)
 			cs.metadata = &metadata{dhcpServer: dhcpServer, zone: cs.zone}
 		} else {
-			klog.Errorf("Error searching metadata server: %v", err)
+			glog.Errorf("Error searching metadata server: %v", err)
 		}
 	}
 
@@ -111,7 +112,7 @@ func newCSCloud(cfg *CSConfig) (*CSCloud, error) {
 
 	if cs.client == nil {
 		if cs.metadata != nil {
-			klog.V(2).Infof("No API URL, key and secret are provided, so only using metadata!")
+			glog.V(2).Infof("No API URL, key and secret are provided, so only using metadata!")
 		} else {
 			return nil, errors.New("no cloud provider config given")
 		}
@@ -121,8 +122,7 @@ func newCSCloud(cfg *CSConfig) (*CSCloud, error) {
 }
 
 // Initialize passes a Kubernetes clientBuilder interface to the cloud provider
-func (cs *CSCloud) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
-}
+func (cs *CSCloud) Initialize(clientBuilder controller.ControllerClientBuilder) {}
 
 // LoadBalancer returns an implementation of LoadBalancer for CloudStack.
 func (cs *CSCloud) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
@@ -208,7 +208,7 @@ func (cs *CSCloud) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
 		cs.zone = instance.Zonename
 	}
 
-	klog.V(2).Infof("Current zone is %v", cs.zone)
+	glog.V(2).Infof("Current zone is %v", cs.zone)
 	zone.FailureDomain = cs.zone
 	zone.Region = cs.zone
 
@@ -230,7 +230,7 @@ func (cs *CSCloud) GetZoneByProviderID(ctx context.Context, providerID string) (
 		return zone, fmt.Errorf("error retrieving zone: %v", err)
 	}
 
-	klog.V(2).Infof("Current zone is %v", cs.zone)
+	glog.V(2).Infof("Current zone is %v", cs.zone)
 	zone.FailureDomain = instance.Zonename
 	zone.Region = instance.Zonename
 
@@ -252,7 +252,7 @@ func (cs *CSCloud) GetZoneByNodeName(ctx context.Context, nodeName types.NodeNam
 		return zone, fmt.Errorf("error retrieving zone: %v", err)
 	}
 
-	klog.V(2).Infof("Current zone is %v", cs.zone)
+	glog.V(2).Infof("Current zone is %v", cs.zone)
 	zone.FailureDomain = instance.Zonename
 	zone.Region = instance.Zonename
 

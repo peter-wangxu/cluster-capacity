@@ -29,7 +29,7 @@ import (
 	"syscall"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/kubernetes/test/e2e/framework"
 )
@@ -99,7 +99,7 @@ func (s *server) String() string {
 //
 // Note: restartOnExit == true requires len(s.healthCheckUrls) > 0 to work properly.
 func (s *server) start() error {
-	klog.Infof("Starting server %q with command %q", s.name, commandToString(s.startCommand))
+	glog.Infof("Starting server %q with command %q", s.name, commandToString(s.startCommand))
 	errCh := make(chan error)
 
 	// Set up restart channels if the server is configured for restart on exit.
@@ -127,7 +127,7 @@ func (s *server) start() error {
 			errCh <- fmt.Errorf("failed to create file %q for `%s` %v.", outPath, s, err)
 			return
 		} else {
-			klog.Infof("Output file for server %q: %v", s.name, outfile.Name())
+			glog.Infof("Output file for server %q: %v", s.name, outfile.Name())
 		}
 		defer outfile.Close()
 		defer outfile.Sync()
@@ -158,7 +158,7 @@ func (s *server) start() error {
 			return
 		}
 		if !s.restartOnExit {
-			klog.Infof("Waiting for server %q start command to complete", s.name)
+			glog.Infof("Waiting for server %q start command to complete", s.name)
 			// If we aren't planning on restarting, ok to Wait() here to release resources.
 			// Otherwise, we Wait() in the restart loop.
 			err = s.startCommand.Wait()
@@ -169,18 +169,18 @@ func (s *server) start() error {
 		} else {
 			usedStartCmd := true
 			for {
-				klog.Infof("Running health check for service %q", s.name)
+				glog.Infof("Running health check for service %q", s.name)
 				// Wait for an initial health check to pass, so that we are sure the server started.
 				err := readinessCheck(s.name, s.healthCheckUrls, nil)
 				if err != nil {
 					if usedStartCmd {
-						klog.Infof("Waiting for server %q start command to complete after initial health check failed", s.name)
+						glog.Infof("Waiting for server %q start command to complete after initial health check failed", s.name)
 						s.startCommand.Wait() // Release resources if necessary.
 					}
 					// This should not happen, immediately stop the e2eService process.
-					klog.Fatalf("Restart loop readinessCheck failed for %s", s)
+					glog.Fatalf("Restart loop readinessCheck failed for %s", s)
 				} else {
-					klog.Infof("Initial health check passed for service %q", s.name)
+					glog.Infof("Initial health check passed for service %q", s.name)
 				}
 
 				// Initial health check passed, wait until a health check fails again.
@@ -220,11 +220,11 @@ func (s *server) start() error {
 					}
 					// Run and wait for exit. This command is assumed to have
 					// short duration, e.g. systemctl restart
-					klog.Infof("Restarting server %q with restart command", s.name)
+					glog.Infof("Restarting server %q with restart command", s.name)
 					err = s.restartCommand.Run()
 					if err != nil {
 						// This should not happen, immediately stop the e2eService process.
-						klog.Fatalf("Restarting server %s with restartCommand failed. Error: %v.", s, err)
+						glog.Fatalf("Restarting server %s with restartCommand failed. Error: %v.", s, err)
 					}
 				} else {
 					s.startCommand = &exec.Cmd{
@@ -238,12 +238,12 @@ func (s *server) start() error {
 						ExtraFiles:  s.startCommand.ExtraFiles,
 						SysProcAttr: s.startCommand.SysProcAttr,
 					}
-					klog.Infof("Restarting server %q with start command", s.name)
+					glog.Infof("Restarting server %q with start command", s.name)
 					err = s.startCommand.Start()
 					usedStartCmd = true
 					if err != nil {
 						// This should not happen, immediately stop the e2eService process.
-						klog.Fatalf("Restarting server %s with startCommand failed. Error: %v.", s, err)
+						glog.Fatalf("Restarting server %s with startCommand failed. Error: %v.", s, err)
 					}
 				}
 			}
@@ -255,7 +255,7 @@ func (s *server) start() error {
 
 // kill runs the server's kill command.
 func (s *server) kill() error {
-	klog.Infof("Kill server %q", s.name)
+	glog.Infof("Kill server %q", s.name)
 	name := s.name
 	cmd := s.startCommand
 
@@ -274,7 +274,7 @@ func (s *server) kill() error {
 	}
 
 	if cmd.Process == nil {
-		klog.V(2).Infof("%q not running", name)
+		glog.V(2).Infof("%q not running", name)
 		return nil
 	}
 	pid := cmd.Process.Pid
@@ -292,11 +292,11 @@ func (s *server) kill() error {
 
 	const timeout = 10 * time.Second
 	for _, signal := range []string{"-TERM", "-KILL"} {
-		klog.V(2).Infof("Killing process %d (%s) with %s", pid, name, signal)
+		glog.V(2).Infof("Killing process %d (%s) with %s", pid, name, signal)
 		cmd := exec.Command("kill", signal, strconv.Itoa(pid))
 		_, err := cmd.Output()
 		if err != nil {
-			klog.Errorf("Error signaling process %d (%s) with %s: %v", pid, name, signal, err)
+			glog.Errorf("Error signaling process %d (%s) with %s: %v", pid, name, signal, err)
 			continue
 		}
 

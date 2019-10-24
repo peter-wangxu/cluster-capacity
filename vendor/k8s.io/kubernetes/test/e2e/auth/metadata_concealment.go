@@ -20,7 +20,7 @@ import (
 	batch "k8s.io/api/batch/v1"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilversion "k8s.io/apimachinery/pkg/util/version"
+	utilversion "k8s.io/kubernetes/pkg/util/version"
 	"k8s.io/kubernetes/test/e2e/framework"
 
 	. "github.com/onsi/ginkgo"
@@ -63,10 +63,10 @@ var _ = SIGDescribe("Metadata Concealment", func() {
 			},
 		}
 		job, err := framework.CreateJob(f.ClientSet, f.Namespace.Name, job)
-		Expect(err).NotTo(HaveOccurred(), "failed to create job (%s:%s)", f.Namespace.Name, job.Name)
+		Expect(err).NotTo(HaveOccurred())
 
 		By("Ensuring job reaches completions")
 		err = framework.WaitForJobComplete(f.ClientSet, f.Namespace.Name, job.Name, int32(1))
-		Expect(err).NotTo(HaveOccurred(), "failed to ensure job completion (%s:%s)", f.Namespace.Name, job.Name)
+		Expect(err).NotTo(HaveOccurred())
 	})
 })

@@ -18,6 +18,8 @@ package persistentvolume
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/kubernetes/pkg/features"
 )
 
 func getClaimRefNamespace(pv *corev1.PersistentVolume) string {
@@ -131,4 +133,12 @@ func VisitPVSecretNames(pv *corev1.PersistentVolume, visitor Visitor) bool {
 		}
 	}
 	return true
+}
+
+// DropDisabledAlphaFields removes disabled fields from the pv spec.
+// This should be called from PrepareForCreate/PrepareForUpdate for all resources containing a pv spec.
+func DropDisabledAlphaFields(pvSpec *corev1.PersistentVolumeSpec) {
+	if !utilfeature.DefaultFeatureGate.Enabled(features.BlockVolume) {
+		pvSpec.VolumeMode = nil
+	}
 }

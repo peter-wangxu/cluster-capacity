@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"fmt"
 	"k8s.io/api/core/v1"
@@ -31,9 +31,9 @@ import (
 	informers "k8s.io/client-go/informers/core/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	bootstrapapi "k8s.io/client-go/tools/bootstrap/token/api"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/util/metrics"
@@ -162,10 +162,10 @@ func (e *BootstrapSigner) Run(stopCh <-chan struct{}) {
 		return
 	}
 
-	klog.V(5).Infof("Starting workers")
+	glog.V(5).Infof("Starting workers")
 	go wait.Until(e.serviceConfigMapQueue, 0, stopCh)
 	<-stopCh
-	klog.V(1).Infof("Shutting down")
+	glog.V(1).Infof("Shutting down")
 }
 
 func (e *BootstrapSigner) pokeConfigMapSync() {
@@ -198,7 +198,7 @@ func (e *BootstrapSigner) signConfigMap() {
 	// First capture the config we are signing
 	content, ok := newCM.Data[bootstrapapi.KubeConfigKey]
 	if !ok {
-		klog.V(3).Infof("No %s key in %s/%s ConfigMap", bootstrapapi.KubeConfigKey, origCM.Namespace, origCM.Name)
+		glog.V(3).Infof("No %s key in %s/%s ConfigMap", bootstrapapi.KubeConfigKey, origCM.Namespace, origCM.Name)
 		return
 	}
 
@@ -244,7 +244,7 @@ func (e *BootstrapSigner) signConfigMap() {
 func (e *BootstrapSigner) updateConfigMap(cm *v1.ConfigMap) {
 	_, err := e.client.CoreV1().ConfigMaps(cm.Namespace).Update(cm)
 	if err != nil && !apierrors.IsConflict(err) && !apierrors.IsNotFound(err) {
-		klog.V(3).Infof("Error updating ConfigMap: %v", err)
+		glog.V(3).Infof("Error updating ConfigMap: %v", err)
 	}
 }
 
@@ -295,7 +295,7 @@ func (e *BootstrapSigner) getTokens() map[string]string {
 		if _, ok := ret[tokenID]; ok {
 			// This should never happen as we ensure a consistent secret name.
 			// But leave this in here just in case.
-			klog.V(1).Infof("Duplicate bootstrap tokens found for id %s, ignoring on in %s/%s", tokenID, secret.Namespace, secret.Name)
+			glog.V(1).Infof("Duplicate bootstrap tokens found for id %s, ignoring on in %s/%s", tokenID, secret.Namespace, secret.Name)
 			continue
 		}
 

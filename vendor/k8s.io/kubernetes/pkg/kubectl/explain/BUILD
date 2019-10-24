@@ -46,10 +46,7 @@ go_test(
         "recursive_fields_printer_test.go",
         "typename_test.go",
     ],
-    data = [
-        "test-recursive-swagger.json",
-        "test-swagger.json",
-    ],
+    data = ["test-swagger.json"],
     embed = [":go_default_library"],
     deps = [
         "//pkg/kubectl/cmd/util/openapi/testing:go_default_library",

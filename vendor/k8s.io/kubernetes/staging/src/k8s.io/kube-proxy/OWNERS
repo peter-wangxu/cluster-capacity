@@ -1,8 +1,10 @@
 approvers:
+- api-approvers
 - sig-network-approvers
 - sttts
 - luxas
 reviewers:
+- api-reviewers
 - sig-network-reviewers
 - luxas
 - sttts

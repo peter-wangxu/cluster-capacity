@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -127,7 +127,7 @@ type processedPods struct {
 
 func (dswp *desiredStateOfWorldPopulator) Run(sourcesReady config.SourcesReady, stopCh <-chan struct{}) {
 	// Wait for the completion of a loop that started after sources are all ready, then set hasAddedPods accordingly
-	klog.Infof("Desired state populator starts to run")
+	glog.Infof("Desired state populator starts to run")
 	wait.PollUntil(dswp.loopSleepDuration, func() (bool, error) {
 		done := sourcesReady.AllReady()
 		dswp.populatorLoop()
@@ -159,7 +159,7 @@ func (dswp *desiredStateOfWorldPopulator) populatorLoop() {
 	// findAndRemoveDeletedPods() is called independently of the main
 	// populator loop.
 	if time.Since(dswp.timeOfLastGetPodStatus) < dswp.getPodStatusRetryDuration {
-		klog.V(5).Infof(
+		glog.V(5).Infof(
 			"Skipping findAndRemoveDeletedPods(). Not permitted until %v (getPodStatusRetryDuration %v).",
 			dswp.timeOfLastGetPodStatus.Add(dswp.getPodStatusRetryDuration),
 			dswp.getPodStatusRetryDuration)
@@ -230,7 +230,7 @@ func (dswp *desiredStateOfWorldPopulator) findAndRemoveDeletedPods() {
 			var getPodsErr error
 			runningPods, getPodsErr = dswp.kubeContainerRuntime.GetPods(false)
 			if getPodsErr != nil {
-				klog.Errorf(
+				glog.Errorf(
 					"kubeContainerRuntime.findAndRemoveDeletedPods returned error %v.",
 					getPodsErr)
 				continue
@@ -252,19 +252,17 @@ func (dswp *desiredStateOfWorldPopulator) findAndRemoveDeletedPods() {
 		}
 
 		if runningContainers {
-			klog.V(4).Infof(
-				"Pod %q still has one or more containers in the non-exited state. Therefore, it will not be removed from desired state.",
+			glog.V(4).Infof(
+				"Pod %q has been removed from pod manager. However, it still has one or more containers in the non-exited state. Therefore, it will not be removed from volume manager.",
 				format.Pod(volumeToMount.Pod))
 			continue
 		}
-		exists, _, _ := dswp.actualStateOfWorld.PodExistsInVolume(volumeToMount.PodName, volumeToMount.VolumeName)
-		if !exists && podExists {
-			klog.V(4).Infof(
-				volumeToMount.GenerateMsgDetailed(fmt.Sprintf("Actual state has not yet has this volume mounted information and pod (%q) still exists in pod manager, skip removing volume from desired state",
-					format.Pod(volumeToMount.Pod)), ""))
+
+		if !dswp.actualStateOfWorld.VolumeExists(volumeToMount.VolumeName) && podExists {
+			glog.V(4).Infof(volumeToMount.GenerateMsgDetailed("Actual state has not yet has this information skip removing volume from desired state", ""))
 			continue
 		}
-		klog.V(4).Infof(volumeToMount.GenerateMsgDetailed("Removing volume from desired state", ""))
+		glog.V(4).Infof(volumeToMount.GenerateMsgDetailed("Removing volume from desired state", ""))
 
 		dswp.desiredStateOfWorld.DeletePodFromVolume(
 			volumeToMount.PodName, volumeToMount.VolumeName)
@@ -295,7 +293,7 @@ func (dswp *desiredStateOfWorldPopulator) processPodVolumes(
 		pvc, volumeSpec, volumeGidValue, err :=
 			dswp.createVolumeSpec(podVolume, pod.Name, pod.Namespace, mountsMap, devicesMap)
 		if err != nil {
-			klog.Errorf(
+			glog.Errorf(
 				"Error processing volume %q for pod %q: %v",
 				podVolume.Name,
 				format.Pod(pod),
@@ -308,7 +306,7 @@ func (dswp *desiredStateOfWorldPopulator) processPodVolumes(
 		_, err = dswp.desiredStateOfWorld.AddPodToVolume(
 			uniquePodName, pod, volumeSpec, podVolume.Name, volumeGidValue)
 		if err != nil {
-			klog.Errorf(
+			glog.Errorf(
 				"Failed to add volume %q (specName: %q) for pod %q to desiredStateOfWorld. err=%v",
 				podVolume.Name,
 				volumeSpec.Name(),
@@ -317,7 +315,7 @@ func (dswp *desiredStateOfWorldPopulator) processPodVolumes(
 			allVolumesAdded = false
 		}
 
-		klog.V(4).Infof(
+		glog.V(4).Infof(
 			"Added volume %q (volSpec=%q) for pod %q to desired state.",
 			podVolume.Name,
 			volumeSpec.Name(),
@@ -367,12 +365,12 @@ func (dswp *desiredStateOfWorldPopulator) checkVolumeFSResize(
 	}
 	fsVolume, err := util.CheckVolumeModeFilesystem(volumeSpec)
 	if err != nil {
-		klog.Errorf("Check volume mode failed for volume %s(OuterVolumeSpecName %s): %v",
+		glog.Errorf("Check volume mode failed for volume %s(OuterVolumeSpecName %s): %v",
 			uniqueVolumeName, podVolume.Name, err)
 		return
 	}
 	if !fsVolume {
-		klog.V(5).Infof("Block mode volume needn't to check file system resize request")
+		glog.V(5).Infof("Block mode volume needn't to check file system resize request")
 		return
 	}
 	if processedVolumesForFSResize.Has(string(uniqueVolumeName)) {
@@ -382,7 +380,7 @@ func (dswp *desiredStateOfWorldPopulator) checkVolumeFSResize(
 	}
 	if mountedReadOnlyByPod(podVolume, pod) {
 		// This volume is used as read only by this pod, we don't perform resize for read only volumes.
-		klog.V(5).Infof("Skip file system resize check for volume %s in pod %s/%s "+
+		glog.V(5).Infof("Skip file system resize check for volume %s in pod %s/%s "+
 			"as the volume is mounted as readonly", podVolume.Name, pod.Namespace, pod.Name)
 		return
 	}
@@ -476,7 +474,7 @@ func (dswp *desiredStateOfWorldPopulator) createVolumeSpec(
 	podVolume v1.Volume, podName string, podNamespace string, mountsMap map[string]bool, devicesMap map[string]bool) (*v1.PersistentVolumeClaim, *volume.Spec, string, error) {
 	if pvcSource :=
 		podVolume.VolumeSource.PersistentVolumeClaim; pvcSource != nil {
-		klog.V(5).Infof(
+		glog.V(5).Infof(
 			"Found PVC, ClaimName: %q/%q",
 			podNamespace,
 			pvcSource.ClaimName)
@@ -493,7 +491,7 @@ func (dswp *desiredStateOfWorldPopulator) createVolumeSpec(
 		}
 		pvName, pvcUID := pvc.Spec.VolumeName, pvc.UID
 
-		klog.V(5).Infof(
+		glog.V(5).Infof(
 			"Found bound PV for PVC (ClaimName %q/%q pvcUID %v): pvName=%q",
 			podNamespace,
 			pvcSource.ClaimName,
@@ -511,7 +509,7 @@ func (dswp *desiredStateOfWorldPopulator) createVolumeSpec(
 				err)
 		}
 
-		klog.V(5).Infof(
+		glog.V(5).Infof(
 			"Extracted volumeSpec (%v) from bound PV (pvName %q) and PVC (ClaimName %q/%q pvcUID %v)",
 			volumeSpec.Name(),
 			pvName,

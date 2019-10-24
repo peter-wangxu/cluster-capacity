@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/mholt/caddy/caddyfile"
-	"github.com/pkg/errors"
+
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -33,7 +33,7 @@ import (
 	clientsetscheme "k8s.io/client-go/kubernetes/scheme"
 	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
 	kubeadmconstants "k8s.io/kubernetes/cmd/kubeadm/app/constants"
-	"k8s.io/kubernetes/cmd/kubeadm/app/images"
+	"k8s.io/kubernetes/cmd/kubeadm/app/features"
 	kubeadmutil "k8s.io/kubernetes/cmd/kubeadm/app/util"
 	"k8s.io/kubernetes/cmd/kubeadm/app/util/apiclient"
 )
@@ -47,11 +47,11 @@ const (
 )
 
 // DeployedDNSAddon returns the type of DNS addon currently deployed
-func DeployedDNSAddon(client clientset.Interface) (kubeadmapi.DNSAddOnType, string, error) {
+func DeployedDNSAddon(client clientset.Interface) (string, string, error) {
 	deploymentsClient := client.AppsV1().Deployments(metav1.NamespaceSystem)
 	deployments, err := deploymentsClient.List(metav1.ListOptions{LabelSelector: "k8s-app=kube-dns"})
 	if err != nil {
-		return "", "", errors.Wrap(err, "couldn't retrieve DNS addon deployments")
+		return "", "", fmt.Errorf("couldn't retrieve DNS addon deployments: %v", err)
 	}
 
 	switch len(deployments.Items) {
@@ -59,22 +59,18 @@ func DeployedDNSAddon(client clientset.Interface) (kubeadmapi.DNSAddOnType, stri
 		return "", "", nil
 	case 1:
 		addonName := deployments.Items[0].Name
-		addonType := kubeadmapi.CoreDNS
-		if addonName == kubeadmconstants.KubeDNSDeploymentName {
-			addonType = kubeadmapi.KubeDNS
-		}
 		addonImage := deployments.Items[0].Spec.Template.Spec.Containers[0].Image
 		addonImageParts := strings.Split(addonImage, ":")
 		addonVersion := addonImageParts[len(addonImageParts)-1]
-		return addonType, addonVersion, nil
+		return addonName, addonVersion, nil
 	default:
-		return "", "", errors.Errorf("multiple DNS addon deployments found: %v", deployments.Items)
+		return "", "", fmt.Errorf("multiple DNS addon deployments found: %v", deployments.Items)
 	}
 }
 
 // EnsureDNSAddon creates the kube-dns or CoreDNS addon
 func EnsureDNSAddon(cfg *kubeadmapi.InitConfiguration, client clientset.Interface) error {
-	if cfg.DNS.Type == kubeadmapi.CoreDNS {
+	if features.Enabled(cfg.FeatureGates, features.CoreDNS) {
 		return coreDNSAddon(cfg, client)
 	}
 	return kubeDNSAddon(cfg, client)
@@ -100,25 +96,23 @@ func kubeDNSAddon(cfg *kubeadmapi.InitConfiguration, client clientset.Interface)
 	}
 
 	dnsDeploymentBytes, err := kubeadmutil.ParseTemplate(KubeDNSDeployment,
-		struct{ DeploymentName, KubeDNSImage, DNSMasqImage, SidecarImage, DNSBindAddr, DNSProbeAddr, DNSDomain, MasterTaintKey string }{
-			DeploymentName: kubeadmconstants.KubeDNSDeploymentName,
-			KubeDNSImage:   images.GetDNSImage(&cfg.ClusterConfiguration, kubeadmconstants.KubeDNSKubeDNSImageName),
-			DNSMasqImage:   images.GetDNSImage(&cfg.ClusterConfiguration, kubeadmconstants.KubeDNSDnsMasqNannyImageName),
-			SidecarImage:   images.GetDNSImage(&cfg.ClusterConfiguration, kubeadmconstants.KubeDNSSidecarImageName),
-			DNSBindAddr:    dnsBindAddr,
-			DNSProbeAddr:   dnsProbeAddr,
-			DNSDomain:      cfg.Networking.DNSDomain,
-			MasterTaintKey: kubeadmconstants.LabelNodeRoleMaster,
+		struct{ ImageRepository, Version, DNSBindAddr, DNSProbeAddr, DNSDomain, MasterTaintKey string }{
+			ImageRepository: cfg.ImageRepository,
+			Version:         kubeadmconstants.KubeDNSVersion,
+			DNSBindAddr:     dnsBindAddr,
+			DNSProbeAddr:    dnsProbeAddr,
+			DNSDomain:       cfg.Networking.DNSDomain,
+			MasterTaintKey:  kubeadmconstants.LabelNodeRoleMaster,
 		})
 	if err != nil {
-		return errors.Wrap(err, "error when parsing kube-dns deployment template")
+		return fmt.Errorf("error when parsing kube-dns deployment template: %v", err)
 	}
 
 	dnsServiceBytes, err := kubeadmutil.ParseTemplate(KubeDNSService, struct{ DNSIP string }{
 		DNSIP: dnsip.String(),
 	})
 	if err != nil {
-		return errors.Wrap(err, "error when parsing kube-proxy configmap template")
+		return fmt.Errorf("error when parsing kube-proxy configmap template: %v", err)
 	}
 
 	if err := createKubeDNSAddon(dnsDeploymentBytes, dnsServiceBytes, client); err != nil {
@@ -142,7 +136,7 @@ func CreateServiceAccount(client clientset.Interface) error {
 func createKubeDNSAddon(deploymentBytes, serviceBytes []byte, client clientset.Interface) error {
 	kubednsDeployment := &apps.Deployment{}
 	if err := kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), deploymentBytes, kubednsDeployment); err != nil {
-		return errors.Wrap(err, "unable to decode kube-dns deployment")
+		return fmt.Errorf("unable to decode kube-dns deployment %v", err)
 	}
 
 	// Create the Deployment for kube-dns or update it in case it already exists
@@ -156,17 +150,17 @@ func createKubeDNSAddon(deploymentBytes, serviceBytes []byte, client clientset.I
 
 func coreDNSAddon(cfg *kubeadmapi.InitConfiguration, client clientset.Interface) error {
 	// Get the YAML manifest
-	coreDNSDeploymentBytes, err := kubeadmutil.ParseTemplate(CoreDNSDeployment, struct{ DeploymentName, Image, MasterTaintKey string }{
-		DeploymentName: kubeadmconstants.CoreDNSDeploymentName,
-		Image:          images.GetDNSImage(&cfg.ClusterConfiguration, kubeadmconstants.CoreDNSImageName),
-		MasterTaintKey: kubeadmconstants.LabelNodeRoleMaster,
+	coreDNSDeploymentBytes, err := kubeadmutil.ParseTemplate(CoreDNSDeployment, struct{ ImageRepository, MasterTaintKey, Version string }{
+		ImageRepository: cfg.ImageRepository,
+		MasterTaintKey:  kubeadmconstants.LabelNodeRoleMaster,
+		Version:         kubeadmconstants.CoreDNSVersion,
 	})
 	if err != nil {
-		return errors.Wrap(err, "error when parsing CoreDNS deployment template")
+		return fmt.Errorf("error when parsing CoreDNS deployment template: %v", err)
 	}
 
 	// Get the kube-dns ConfigMap for translation to equivalent CoreDNS Config.
-	kubeDNSConfigMap, err := client.CoreV1().ConfigMaps(metav1.NamespaceSystem).Get(kubeadmconstants.KubeDNSConfigMap, metav1.GetOptions{})
+	kubeDNSConfigMap, err := client.CoreV1().ConfigMaps(metav1.NamespaceSystem).Get(kubeadmconstants.KubeDNS, metav1.GetOptions{})
 	if err != nil && !apierrors.IsNotFound(err) {
 		return err
 	}
@@ -194,7 +188,7 @@ func coreDNSAddon(cfg *kubeadmapi.InitConfiguration, client clientset.Interface)
 		StubDomain:         stubDomain,
 	})
 	if err != nil {
-		return errors.Wrap(err, "error when parsing CoreDNS configMap template")
+		return fmt.Errorf("error when parsing CoreDNS configMap template: %v", err)
 	}
 
 	dnsip, err := kubeadmconstants.GetDNSIP(cfg.Networking.ServiceSubnet)
@@ -207,7 +201,7 @@ func coreDNSAddon(cfg *kubeadmapi.InitConfiguration, client clientset.Interface)
 	})
 
 	if err != nil {
-		return errors.Wrap(err, "error when parsing CoreDNS service template")
+		return fmt.Errorf("error when parsing CoreDNS service template: %v", err)
 	}
 
 	if err := createCoreDNSAddon(coreDNSDeploymentBytes, coreDNSServiceBytes, coreDNSConfigMapBytes, client); err != nil {
@@ -220,17 +214,17 @@ func coreDNSAddon(cfg *kubeadmapi.InitConfiguration, client clientset.Interface)
 func createCoreDNSAddon(deploymentBytes, serviceBytes, configBytes []byte, client clientset.Interface) error {
 	coreDNSConfigMap := &v1.ConfigMap{}
 	if err := kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), configBytes, coreDNSConfigMap); err != nil {
-		return errors.Wrap(err, "unable to decode CoreDNS configmap")
+		return fmt.Errorf("unable to decode CoreDNS configmap %v", err)
 	}
 
 	// Create the ConfigMap for CoreDNS or retain it in case it already exists
-	if err := apiclient.CreateOrRetainConfigMap(client, coreDNSConfigMap, kubeadmconstants.CoreDNSConfigMap); err != nil {
+	if err := apiclient.CreateOrRetainConfigMap(client, coreDNSConfigMap, kubeadmconstants.CoreDNS); err != nil {
 		return err
 	}
 
 	coreDNSClusterRoles := &rbac.ClusterRole{}
 	if err := kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), []byte(CoreDNSClusterRole), coreDNSClusterRoles); err != nil {
-		return errors.Wrap(err, "unable to decode CoreDNS clusterroles")
+		return fmt.Errorf("unable to decode CoreDNS clusterroles %v", err)
 	}
 
 	// Create the Clusterroles for CoreDNS or update it in case it already exists
@@ -240,7 +234,7 @@ func createCoreDNSAddon(deploymentBytes, serviceBytes, configBytes []byte, clien
 
 	coreDNSClusterRolesBinding := &rbac.ClusterRoleBinding{}
 	if err := kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), []byte(CoreDNSClusterRoleBinding), coreDNSClusterRolesBinding); err != nil {
-		return errors.Wrap(err, "unable to decode CoreDNS clusterrolebindings")
+		return fmt.Errorf("unable to decode CoreDNS clusterrolebindings %v", err)
 	}
 
 	// Create the Clusterrolebindings for CoreDNS or update it in case it already exists
@@ -250,7 +244,7 @@ func createCoreDNSAddon(deploymentBytes, serviceBytes, configBytes []byte, clien
 
 	coreDNSServiceAccount := &v1.ServiceAccount{}
 	if err := kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), []byte(CoreDNSServiceAccount), coreDNSServiceAccount); err != nil {
-		return errors.Wrap(err, "unable to decode CoreDNS serviceaccount")
+		return fmt.Errorf("unable to decode CoreDNS serviceaccount %v", err)
 	}
 
 	// Create the ConfigMap for CoreDNS or update it in case it already exists
@@ -260,7 +254,7 @@ func createCoreDNSAddon(deploymentBytes, serviceBytes, configBytes []byte, clien
 
 	coreDNSDeployment := &apps.Deployment{}
 	if err := kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), deploymentBytes, coreDNSDeployment); err != nil {
-		return errors.Wrap(err, "unable to decode CoreDNS deployment")
+		return fmt.Errorf("unable to decode CoreDNS deployment %v", err)
 	}
 
 	// Create the Deployment for CoreDNS or update it in case it already exists
@@ -274,7 +268,7 @@ func createCoreDNSAddon(deploymentBytes, serviceBytes, configBytes []byte, clien
 
 func createDNSService(dnsService *v1.Service, serviceBytes []byte, client clientset.Interface) error {
 	if err := kuberuntime.DecodeInto(clientsetscheme.Codecs.UniversalDecoder(), serviceBytes, dnsService); err != nil {
-		return errors.Wrap(err, "unable to decode the DNS service")
+		return fmt.Errorf("unable to decode the DNS service %v", err)
 	}
 
 	// Can't use a generic apiclient helper func here as we have to tolerate more than AlreadyExists.
@@ -283,11 +277,11 @@ func createDNSService(dnsService *v1.Service, serviceBytes []byte, client client
 		// 	Service "kube-dns" is invalid: spec.clusterIP: Invalid value: "10.96.0.10": provided IP is already allocated
 
 		if !apierrors.IsAlreadyExists(err) && !apierrors.IsInvalid(err) {
-			return errors.Wrap(err, "unable to create a new DNS service")
+			return fmt.Errorf("unable to create a new DNS service: %v", err)
 		}
 
 		if _, err := client.CoreV1().Services(metav1.NamespaceSystem).Update(dnsService); err != nil {
-			return errors.Wrap(err, "unable to create/update the DNS service")
+			return fmt.Errorf("unable to create/update the DNS service: %v", err)
 		}
 	}
 	return nil
@@ -304,7 +298,7 @@ func translateStubDomainOfKubeDNSToProxyCoreDNS(dataField string, kubeDNSConfigM
 		stubDomainData := make(map[string][]string)
 		err := json.Unmarshal([]byte(proxy), &stubDomainData)
 		if err != nil {
-			return "", errors.Wrap(err, "failed to parse JSON from 'kube-dns ConfigMap")
+			return "", fmt.Errorf("failed to parse JSON from 'kube-dns ConfigMap: %v", err)
 		}
 
 		var proxyStanza []interface{}
@@ -346,7 +340,7 @@ func translateUpstreamNameServerOfKubeDNSToUpstreamProxyCoreDNS(dataField string
 
 		err := json.Unmarshal([]byte(upstreamValues), &upstreamProxyIP)
 		if err != nil {
-			return "", errors.Wrap(err, "failed to parse JSON from 'kube-dns ConfigMap")
+			return "", fmt.Errorf("failed to parse JSON from 'kube-dns ConfigMap: %v", err)
 		}
 
 		coreDNSProxyStanzaList := strings.Join(upstreamProxyIP, " ")
@@ -371,7 +365,7 @@ func translateFederationsofKubeDNSToCoreDNS(dataField, coreDNSDomain string, kub
 
 		err := json.Unmarshal([]byte(federation), &federationData)
 		if err != nil {
-			return "", errors.Wrap(err, "failed to parse JSON from kube-dns ConfigMap")
+			return "", fmt.Errorf("failed to parse JSON from kube-dns ConfigMap: %v", err)
 		}
 		fStanza := map[string]interface{}{}
 

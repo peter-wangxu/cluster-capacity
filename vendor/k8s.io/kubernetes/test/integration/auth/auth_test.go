@@ -40,7 +40,6 @@ import (
 	"k8s.io/apiserver/pkg/authentication/group"
 	"k8s.io/apiserver/pkg/authentication/request/bearertoken"
 	"k8s.io/apiserver/pkg/authentication/serviceaccount"
-	"k8s.io/apiserver/pkg/authentication/token/cache"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
@@ -85,11 +84,11 @@ func getTestWebhookTokenAuth(serverURL string) (authenticator.Request, error) {
 	if err := json.NewEncoder(kubecfgFile).Encode(config); err != nil {
 		return nil, err
 	}
-	webhookTokenAuth, err := webhook.New(kubecfgFile.Name(), nil)
+	webhookTokenAuth, err := webhook.New(kubecfgFile.Name(), 2*time.Minute)
 	if err != nil {
 		return nil, err
 	}
-	return bearertoken.New(cache.New(webhookTokenAuth, false, 2*time.Minute, 2*time.Minute)), nil
+	return bearertoken.New(webhookTokenAuth), nil
 }
 
 func path(resource, namespace, name string) string {
@@ -398,7 +397,7 @@ func getTestRequests(namespace string) []struct {
 	return requests
 }
 
-// The TestAuthMode* tests a large number of URLs and checks that they
+// The TestAuthMode* tests tests a large number of URLs and checks that they
 // are FORBIDDEN or not, depending on the mode.  They do not attempt to do
 // detailed verification of behaviour beyond authorization.  They are not
 // fuzz tests.

@@ -19,9 +19,10 @@ package group
 import (
 	"fmt"
 
-	policy "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/policy"
+	psputil "k8s.io/kubernetes/pkg/security/podsecuritypolicy/util"
 )
 
 // mustRunAs implements the GroupStrategy interface
@@ -65,7 +66,21 @@ func (s *mustRunAs) Validate(fldPath *field.Path, _ *api.Pod, groups []int64) fi
 		allErrs = append(allErrs, field.Invalid(fldPath, groups, "unable to validate empty groups against required ranges"))
 	}
 
-	allErrs = append(allErrs, ValidateGroupsInRanges(fldPath, s.ranges, groups)...)
+	for _, group := range groups {
+		if !s.isGroupValid(group) {
+			detail := fmt.Sprintf("group %d must be in the ranges: %v", group, s.ranges)
+			allErrs = append(allErrs, field.Invalid(fldPath, groups, detail))
+		}
+	}
 
 	return allErrs
+}
+
+func (s *mustRunAs) isGroupValid(group int64) bool {
+	for _, rng := range s.ranges {
+		if psputil.GroupFallsInRange(group, rng) {
+			return true
+		}
+	}
+	return false
 }

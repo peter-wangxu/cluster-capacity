@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"net"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,21 +36,21 @@ import (
 
 type adapter struct {
 	k8s   clientset.Interface
-	cloud *gce.Cloud
+	cloud *gce.GCECloud
 
 	recorder record.EventRecorder
 }
 
-func newAdapter(k8s clientset.Interface, cloud *gce.Cloud) *adapter {
+func newAdapter(k8s clientset.Interface, cloud *gce.GCECloud) *adapter {
 	ret := &adapter{
 		k8s:   k8s,
 		cloud: cloud,
 	}
 
 	broadcaster := record.NewBroadcaster()
-	broadcaster.StartLogging(klog.Infof)
+	broadcaster.StartLogging(glog.Infof)
 	ret.recorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "cloudCIDRAllocator"})
-	klog.V(0).Infof("Sending events to api server.")
+	glog.V(0).Infof("Sending events to api server.")
 	broadcaster.StartRecordingToSink(&v1core.EventSinkImpl{
 		Interface: k8s.CoreV1().Events(""),
 	})
@@ -70,7 +70,7 @@ func (a *adapter) Alias(ctx context.Context, nodeName string) (*net.IPNet, error
 	case 1:
 		break
 	default:
-		klog.Warningf("Node %q has more than one alias assigned (%v), defaulting to the first", nodeName, cidrs)
+		glog.Warningf("Node %q has more than one alias assigned (%v), defaulting to the first", nodeName, cidrs)
 	}
 
 	_, cidrRange, err := net.ParseCIDR(cidrs[0])

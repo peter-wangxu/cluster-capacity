@@ -23,7 +23,7 @@ import (
 	"net/url"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -88,12 +88,7 @@ func NewAvailableConditionController(
 		endpointsLister:  endpointsInformer.Lister(),
 		endpointsSynced:  endpointsInformer.Informer().HasSynced,
 		serviceResolver:  serviceResolver,
-		queue: workqueue.NewNamedRateLimitingQueue(
-			// We want a fairly tight requeue time.  The controller listens to the API, but because it relies on the routability of the
-			// service network, it is possible for an external, non-watchable factor to affect availability.  This keeps
-			// the maximum disruption time to a minimum, but it does prevent hot loops.
-			workqueue.NewItemExponentialFailureRateLimiter(5*time.Millisecond, 30*time.Second),
-			"AvailableConditionController"),
+		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "AvailableConditionController"),
 	}
 
 	// construct an http client that will ignore TLS verification (if someone owns the network and messes with your status
@@ -280,8 +275,8 @@ func (c *AvailableConditionController) Run(threadiness int, stopCh <-chan struct
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	klog.Infof("Starting AvailableConditionController")
-	defer klog.Infof("Shutting down AvailableConditionController")
+	glog.Infof("Starting AvailableConditionController")
+	defer glog.Infof("Shutting down AvailableConditionController")
 
 	if !controllers.WaitForCacheSync("AvailableConditionController", stopCh, c.apiServiceSynced, c.servicesSynced, c.endpointsSynced) {
 		return
@@ -322,7 +317,7 @@ func (c *AvailableConditionController) processNextWorkItem() bool {
 func (c *AvailableConditionController) enqueue(obj *apiregistration.APIService) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		klog.Errorf("Couldn't get key for object %#v: %v", obj, err)
+		glog.Errorf("Couldn't get key for object %#v: %v", obj, err)
 		return
 	}
 
@@ -331,13 +326,13 @@ func (c *AvailableConditionController) enqueue(obj *apiregistration.APIService) 
 
 func (c *AvailableConditionController) addAPIService(obj interface{}) {
 	castObj := obj.(*apiregistration.APIService)
-	klog.V(4).Infof("Adding %s", castObj.Name)
+	glog.V(4).Infof("Adding %s", castObj.Name)
 	c.enqueue(castObj)
 }
 
 func (c *AvailableConditionController) updateAPIService(obj, _ interface{}) {
 	castObj := obj.(*apiregistration.APIService)
-	klog.V(4).Infof("Updating %s", castObj.Name)
+	glog.V(4).Infof("Updating %s", castObj.Name)
 	c.enqueue(castObj)
 }
 
@@ -346,16 +341,16 @@ func (c *AvailableConditionController) deleteAPIService(obj interface{}) {
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			klog.Errorf("Couldn't get object from tombstone %#v", obj)
+			glog.Errorf("Couldn't get object from tombstone %#v", obj)
 			return
 		}
 		castObj, ok = tombstone.Obj.(*apiregistration.APIService)
 		if !ok {
-			klog.Errorf("Tombstone contained object that is not expected %#v", obj)
+			glog.Errorf("Tombstone contained object that is not expected %#v", obj)
 			return
 		}
 	}
-	klog.V(4).Infof("Deleting %q", castObj.Name)
+	glog.V(4).Infof("Deleting %q", castObj.Name)
 	c.enqueue(castObj)
 }
 
@@ -400,12 +395,12 @@ func (c *AvailableConditionController) deleteService(obj interface{}) {
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			klog.Errorf("Couldn't get object from tombstone %#v", obj)
+			glog.Errorf("Couldn't get object from tombstone %#v", obj)
 			return
 		}
 		castObj, ok = tombstone.Obj.(*v1.Service)
 		if !ok {
-			klog.Errorf("Tombstone contained object that is not expected %#v", obj)
+			glog.Errorf("Tombstone contained object that is not expected %#v", obj)
 			return
 		}
 	}
@@ -431,12 +426,12 @@ func (c *AvailableConditionController) deleteEndpoints(obj interface{}) {
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			klog.Errorf("Couldn't get object from tombstone %#v", obj)
+			glog.Errorf("Couldn't get object from tombstone %#v", obj)
 			return
 		}
 		castObj, ok = tombstone.Obj.(*v1.Endpoints)
 		if !ok {
-			klog.Errorf("Tombstone contained object that is not expected %#v", obj)
+			glog.Errorf("Tombstone contained object that is not expected %#v", obj)
 			return
 		}
 	}

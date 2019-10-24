@@ -38,7 +38,7 @@ func TestCreateRole(t *testing.T) {
 	defer tf.Cleanup()
 
 	tf.Client = &fake.RESTClient{}
-	tf.ClientConfigVal = cmdtesting.DefaultClientConfig()
+	tf.ClientConfigVal = defaultClientConfig()
 
 	tests := map[string]struct {
 		verbs         string
@@ -358,7 +358,7 @@ func TestComplete(t *testing.T) {
 	defer tf.Cleanup()
 
 	tf.Client = &fake.RESTClient{}
-	tf.ClientConfigVal = cmdtesting.DefaultClientConfig()
+	tf.ClientConfigVal = defaultClientConfig()
 
 	defaultTestResources := "pods,deployments.extensions"
 

@@ -27,12 +27,13 @@ import (
 	"k8s.io/apiserver/pkg/storage/storagebackend"
 	apiserverflag "k8s.io/apiserver/pkg/util/flag"
 	api "k8s.io/kubernetes/pkg/apis/core"
-	_ "k8s.io/kubernetes/pkg/features" // add the kubernetes feature gates
 	kubeoptions "k8s.io/kubernetes/pkg/kubeapiserver/options"
 	kubeletclient "k8s.io/kubernetes/pkg/kubelet/client"
 	"k8s.io/kubernetes/pkg/master/ports"
 	"k8s.io/kubernetes/pkg/master/reconcilers"
-	"k8s.io/kubernetes/pkg/serviceaccount"
+
+	// add the kubernetes feature gates
+	_ "k8s.io/kubernetes/pkg/features"
 )
 
 // ServerRunOptions runs a kubernetes api server.
@@ -69,26 +70,24 @@ type ServerRunOptions struct {
 	MasterCount            int
 	EndpointReconcilerType string
 
-	ServiceAccountSigningKeyFile     string
-	ServiceAccountIssuer             serviceaccount.TokenGenerator
-	ServiceAccountTokenMaxExpiration time.Duration
+	ServiceAccountSigningKeyFile string
 }
 
 // NewServerRunOptions creates a new ServerRunOptions object with default parameters
 func NewServerRunOptions() *ServerRunOptions {
 	s := ServerRunOptions{
 		GenericServerRunOptions: genericoptions.NewServerRunOptions(),
-		Etcd:                    genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(kubeoptions.DefaultEtcdPathPrefix, nil)),
-		SecureServing:           kubeoptions.NewSecureServingOptions(),
-		InsecureServing:         kubeoptions.NewInsecureServingOptions(),
-		Audit:                   genericoptions.NewAuditOptions(),
-		Features:                genericoptions.NewFeatureOptions(),
-		Admission:               kubeoptions.NewAdmissionOptions(),
-		Authentication:          kubeoptions.NewBuiltInAuthenticationOptions().WithAll(),
-		Authorization:           kubeoptions.NewBuiltInAuthorizationOptions(),
-		CloudProvider:           kubeoptions.NewCloudProviderOptions(),
-		StorageSerialization:    kubeoptions.NewStorageSerializationOptions(),
-		APIEnablement:           genericoptions.NewAPIEnablementOptions(),
+		Etcd:                 genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(kubeoptions.DefaultEtcdPathPrefix, nil)),
+		SecureServing:        kubeoptions.NewSecureServingOptions(),
+		InsecureServing:      kubeoptions.NewInsecureServingOptions(),
+		Audit:                genericoptions.NewAuditOptions(),
+		Features:             genericoptions.NewFeatureOptions(),
+		Admission:            kubeoptions.NewAdmissionOptions(),
+		Authentication:       kubeoptions.NewBuiltInAuthenticationOptions().WithAll(),
+		Authorization:        kubeoptions.NewBuiltInAuthorizationOptions(),
+		CloudProvider:        kubeoptions.NewCloudProviderOptions(),
+		StorageSerialization: kubeoptions.NewStorageSerializationOptions(),
+		APIEnablement:        genericoptions.NewAPIEnablementOptions(),
 
 		EnableLogsHandler:      true,
 		EventTTL:               1 * time.Hour,

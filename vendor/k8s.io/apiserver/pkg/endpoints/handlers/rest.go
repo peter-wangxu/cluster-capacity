@@ -20,15 +20,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	goruntime "runtime"
-	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -36,13 +33,13 @@ import (
 	metav1beta1 "k8s.io/apimachinery/pkg/apis/meta/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"k8s.io/apiserver/pkg/endpoints/handlers/responsewriters"
 	"k8s.io/apiserver/pkg/endpoints/metrics"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-	utiltrace "k8s.io/apiserver/pkg/util/trace"
 	openapiproto "k8s.io/kube-openapi/pkg/util/proto"
 )
 
@@ -59,21 +56,15 @@ type RequestScope struct {
 	Typer           runtime.ObjectTyper
 	UnsafeConvertor runtime.ObjectConvertor
 	Authorizer      authorizer.Authorizer
-	Trace           *utiltrace.Trace
 
 	TableConvertor rest.TableConvertor
-	OpenAPIModels  openapiproto.Models
+	OpenAPISchema  openapiproto.Schema
 
 	Resource    schema.GroupVersionResource
 	Kind        schema.GroupVersionKind
 	Subresource string
 
 	MetaGroupVersion schema.GroupVersion
-
-	// HubGroupVersion indicates what version objects read from etcd or incoming requests should be converted to for in-memory handling.
-	HubGroupVersion schema.GroupVersion
-
-	MaxRequestBodyBytes int64
 }
 
 func (scope *RequestScope) err(err error, w http.ResponseWriter, req *http.Request) {
@@ -186,17 +177,10 @@ func finishRequest(timeout time.Duration, fn resultFunc) (result runtime.Object,
 	panicCh := make(chan interface{}, 1)
 	go func() {
 		// panics don't cross goroutine boundaries, so we have to handle ourselves
-		defer func() {
-			panicReason := recover()
-			if panicReason != nil {
-				const size = 64 << 10
-				buf := make([]byte, size)
-				buf = buf[:goruntime.Stack(buf, false)]
-				panicReason = strings.TrimSuffix(fmt.Sprintf("%v\n%s", panicReason, string(buf)), "\n")
-				// Propagate to parent goroutine
-				panicCh <- panicReason
-			}
-		}()
+		defer utilruntime.HandleCrash(func(panicReason interface{}) {
+			// Propagate to parent goroutine
+			panicCh <- panicReason
+		})
 
 		if result, err := fn(); err != nil {
 			errCh <- err
@@ -295,7 +279,7 @@ func setListSelfLink(obj runtime.Object, ctx context.Context, req *http.Request,
 		return 0, err
 	}
 	if err := namer.SetSelfLink(obj, uri); err != nil {
-		klog.V(4).Infof("Unable to set self link on object: %v", err)
+		glog.V(4).Infof("Unable to set self link on object: %v", err)
 	}
 	requestInfo, ok := request.RequestInfoFrom(ctx)
 	if !ok {
@@ -327,23 +311,9 @@ func summarizeData(data []byte, maxLength int) string {
 	}
 }
 
-func limitedReadBody(req *http.Request, limit int64) ([]byte, error) {
+func readBody(req *http.Request) ([]byte, error) {
 	defer req.Body.Close()
-	if limit <= 0 {
-		return ioutil.ReadAll(req.Body)
-	}
-	lr := &io.LimitedReader{
-		R: req.Body,
-		N: limit + 1,
-	}
-	data, err := ioutil.ReadAll(lr)
-	if err != nil {
-		return nil, err
-	}
-	if lr.N <= 0 {
-		return nil, errors.NewRequestEntityTooLargeError(fmt.Sprintf("limit is %d", limit))
-	}
-	return data, nil
+	return ioutil.ReadAll(req.Body)
 }
 
 func parseTimeout(str string) time.Duration {
@@ -352,7 +322,7 @@ func parseTimeout(str string) time.Duration {
 		if err == nil {
 			return timeout
 		}
-		klog.Errorf("Failed to parse %q: %v", str, err)
+		glog.Errorf("Failed to parse %q: %v", str, err)
 	}
 	return 30 * time.Second
 }

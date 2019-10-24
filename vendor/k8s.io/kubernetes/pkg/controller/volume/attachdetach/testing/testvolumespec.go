@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,7 +29,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
-	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
 )
@@ -237,7 +237,7 @@ func (plugin *TestPlugin) GetVolumeName(spec *volume.Spec) (string, error) {
 	plugin.pluginLock.Lock()
 	defer plugin.pluginLock.Unlock()
 	if spec == nil {
-		klog.Errorf("GetVolumeName called with nil volume spec")
+		glog.Errorf("GetVolumeName called with nil volume spec")
 		plugin.ErrorEncountered = true
 	}
 	return spec.Name(), nil
@@ -247,7 +247,7 @@ func (plugin *TestPlugin) CanSupport(spec *volume.Spec) bool {
 	plugin.pluginLock.Lock()
 	defer plugin.pluginLock.Unlock()
 	if spec == nil {
-		klog.Errorf("CanSupport called with nil volume spec")
+		glog.Errorf("CanSupport called with nil volume spec")
 		plugin.ErrorEncountered = true
 	}
 	return true
@@ -261,7 +261,7 @@ func (plugin *TestPlugin) NewMounter(spec *volume.Spec, podRef *v1.Pod, opts vol
 	plugin.pluginLock.Lock()
 	defer plugin.pluginLock.Unlock()
 	if spec == nil {
-		klog.Errorf("NewMounter called with nil volume spec")
+		glog.Errorf("NewMounter called with nil volume spec")
 		plugin.ErrorEncountered = true
 	}
 	return nil, nil
@@ -373,7 +373,7 @@ func (attacher *testPluginAttacher) Attach(spec *volume.Spec, nodeName types.Nod
 	defer attacher.pluginLock.Unlock()
 	if spec == nil {
 		*attacher.ErrorEncountered = true
-		klog.Errorf("Attach called with nil volume spec")
+		glog.Errorf("Attach called with nil volume spec")
 		return "", fmt.Errorf("Attach called with nil volume spec")
 	}
 	attacher.attachedVolumeMap[string(nodeName)] = append(attacher.attachedVolumeMap[string(nodeName)], spec.Name())
@@ -389,7 +389,7 @@ func (attacher *testPluginAttacher) WaitForAttach(spec *volume.Spec, devicePath 
 	defer attacher.pluginLock.Unlock()
 	if spec == nil {
 		*attacher.ErrorEncountered = true
-		klog.Errorf("WaitForAttach called with nil volume spec")
+		glog.Errorf("WaitForAttach called with nil volume spec")
 		return "", fmt.Errorf("WaitForAttach called with nil volume spec")
 	}
 	fakePath := fmt.Sprintf("%s/%s", devicePath, spec.Name())
@@ -401,7 +401,7 @@ func (attacher *testPluginAttacher) GetDeviceMountPath(spec *volume.Spec) (strin
 	defer attacher.pluginLock.Unlock()
 	if spec == nil {
 		*attacher.ErrorEncountered = true
-		klog.Errorf("GetDeviceMountPath called with nil volume spec")
+		glog.Errorf("GetDeviceMountPath called with nil volume spec")
 		return "", fmt.Errorf("GetDeviceMountPath called with nil volume spec")
 	}
 	return "", nil
@@ -412,7 +412,7 @@ func (attacher *testPluginAttacher) MountDevice(spec *volume.Spec, devicePath st
 	defer attacher.pluginLock.Unlock()
 	if spec == nil {
 		*attacher.ErrorEncountered = true
-		klog.Errorf("MountDevice called with nil volume spec")
+		glog.Errorf("MountDevice called with nil volume spec")
 		return fmt.Errorf("MountDevice called with nil volume spec")
 	}
 	return nil

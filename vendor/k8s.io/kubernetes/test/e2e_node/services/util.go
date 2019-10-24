@@ -18,7 +18,7 @@ package services
 
 import (
 	"fmt"
-	"k8s.io/klog"
+	"github.com/golang/glog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -41,7 +41,7 @@ func waitForTerminationSignal() {
 // check URLs. Once there is an error in errCh, the function will stop waiting
 // and return the error.
 func readinessCheck(name string, urls []string, errCh <-chan error) error {
-	klog.Infof("Running readiness check for service %q", name)
+	glog.Infof("Running readiness check for service %q", name)
 	endTime := time.Now().Add(*serverStartTimeout)
 	blockCh := make(chan error)
 	defer close(blockCh)

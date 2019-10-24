@@ -24,8 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/kubernetes/pkg/apis/apps"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 )
 
 const (
@@ -160,20 +160,20 @@ func TestSelectorImmutability(t *testing.T) {
 	}
 }
 
-func newDaemonSetWithSelectorLabels(selectorLabels map[string]string, templateGeneration int64) *apps.DaemonSet {
-	return &apps.DaemonSet{
+func newDaemonSetWithSelectorLabels(selectorLabels map[string]string, templateGeneration int64) *extensions.DaemonSet {
+	return &extensions.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            daemonsetName,
 			Namespace:       namespace,
 			ResourceVersion: "1",
 		},
-		Spec: apps.DaemonSetSpec{
+		Spec: extensions.DaemonSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels:      selectorLabels,
 				MatchExpressions: []metav1.LabelSelectorRequirement{},
 			},
-			UpdateStrategy: apps.DaemonSetUpdateStrategy{
-				Type: apps.OnDeleteDaemonSetStrategyType,
+			UpdateStrategy: extensions.DaemonSetUpdateStrategy{
+				Type: extensions.OnDeleteDaemonSetStrategyType,
 			},
 			TemplateGeneration: templateGeneration,
 			Template: api.PodTemplateSpec{

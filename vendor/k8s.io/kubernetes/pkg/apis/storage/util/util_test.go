@@ -21,10 +21,8 @@ import (
 	"testing"
 
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	utilfeaturetesting "k8s.io/apiserver/pkg/util/feature/testing"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/storage"
-	"k8s.io/kubernetes/pkg/features"
 )
 
 func TestDropAlphaFields(t *testing.T) {
@@ -41,7 +39,9 @@ func TestDropAlphaFields(t *testing.T) {
 	}
 
 	// Test that field gets dropped when feature gate is not set
-	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.VolumeScheduling, false)()
+	if err := utilfeature.DefaultFeatureGate.Set("VolumeScheduling=false"); err != nil {
+		t.Fatalf("Failed to set feature gate for VolumeScheduling: %v", err)
+	}
 	class := &storage.StorageClass{
 		VolumeBindingMode: &bindingMode,
 		AllowedTopologies: allowedTopologies,
@@ -59,12 +59,18 @@ func TestDropAlphaFields(t *testing.T) {
 		VolumeBindingMode: &bindingMode,
 		AllowedTopologies: allowedTopologies,
 	}
-	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.VolumeScheduling, true)()
+	if err := utilfeature.DefaultFeatureGate.Set("VolumeScheduling=true"); err != nil {
+		t.Fatalf("Failed to set feature gate for VolumeScheduling: %v", err)
+	}
 	DropDisabledAlphaFields(class)
 	if class.VolumeBindingMode != &bindingMode {
 		t.Errorf("VolumeBindingMode field got unexpectantly modified: %+v", class.VolumeBindingMode)
 	}
 	if !reflect.DeepEqual(class.AllowedTopologies, allowedTopologies) {
 		t.Errorf("AllowedTopologies field got unexpectantly modified: %+v", class.AllowedTopologies)
+	}
+
+	if err := utilfeature.DefaultFeatureGate.Set("VolumeScheduling=false"); err != nil {
+		t.Fatalf("Failed to disable feature gate for VolumeScheduling: %v", err)
 	}
 }

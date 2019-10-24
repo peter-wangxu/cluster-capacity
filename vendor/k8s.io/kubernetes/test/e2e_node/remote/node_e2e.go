@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/kubernetes/test/e2e_node/builder"
 	"k8s.io/kubernetes/test/e2e_node/system"
@@ -105,7 +105,7 @@ func tarAddFile(tar, source, dest string) error {
 // prependCOSMounterFlag prepends the flag for setting the GCI mounter path to
 // args and returns the result.
 func prependCOSMounterFlag(args, host, workspace string) (string, error) {
-	klog.V(2).Infof("GCI/COS node and GCI/COS mounter both detected, modifying --experimental-mounter-path accordingly")
+	glog.V(2).Infof("GCI/COS node and GCI/COS mounter both detected, modifying --experimental-mounter-path accordingly")
 	mounterPath := filepath.Join(workspace, "mounter")
 	args = fmt.Sprintf("--kubelet-flags=--experimental-mounter-path=%s ", mounterPath) + args
 	return args, nil
@@ -161,7 +161,7 @@ func (n *NodeE2ERemote) RunTest(host, workspace, results, imageDesc, junitFilePr
 	}
 
 	// Run the tests
-	klog.V(2).Infof("Starting tests on %q", host)
+	glog.V(2).Infof("Starting tests on %q", host)
 	cmd := getSSHCommand(" && ",
 		fmt.Sprintf("cd %s", workspace),
 		fmt.Sprintf("timeout -k 30s %fs ./ginkgo %s ./e2e_node.test -- --system-spec-name=%s --system-spec-file=%s --extra-envs=%s --logtostderr --v 4 --node-name=%s --report-dir=%s --report-prefix=%s --image-description=\"%s\" %s",

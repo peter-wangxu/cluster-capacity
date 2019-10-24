@@ -29,8 +29,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	"github.com/golang/glog"
 	"golang.org/x/crypto/ssh"
-	"k8s.io/klog"
 )
 
 type testSSHServer struct {
@@ -94,11 +94,11 @@ func runTestSSHServer(user, password string) (*testSSHServer, error) {
 
 		conn, err := listener.Accept()
 		if err != nil {
-			klog.Errorf("Failed to accept: %v", err)
+			glog.Errorf("Failed to accept: %v", err)
 		}
 		_, chans, reqs, err := ssh.NewServerConn(conn, config)
 		if err != nil {
-			klog.Errorf("Failed handshake: %v", err)
+			glog.Errorf("Failed handshake: %v", err)
 		}
 		go ssh.DiscardRequests(reqs)
 		for newChannel := range chans {
@@ -108,11 +108,11 @@ func runTestSSHServer(user, password string) (*testSSHServer, error) {
 			}
 			channel, requests, err := newChannel.Accept()
 			if err != nil {
-				klog.Errorf("Failed to accept channel: %v", err)
+				glog.Errorf("Failed to accept channel: %v", err)
 			}
 
 			for req := range requests {
-				klog.Infof("Got request: %v", req)
+				glog.Infof("Got request: %v", req)
 			}
 
 			channel.Close()

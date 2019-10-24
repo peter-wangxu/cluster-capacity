@@ -18,4 +18,8 @@ limitations under the License.
 
 package internalversion
 
+type DaemonSetExpansion interface{}
+
 type IngressExpansion interface{}
+
+type ReplicaSetExpansion interface{}

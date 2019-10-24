@@ -21,11 +21,10 @@ import (
 	"strings"
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
-	"k8s.io/client-go/kubernetes/fake"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
 	"k8s.io/kubernetes/pkg/registry/core/service/portallocator"
 )
 
@@ -135,39 +134,39 @@ func TestRepairWithExisting(t *testing.T) {
 	}
 
 	fakeClient := fake.NewSimpleClientset(
-		&corev1.Service{
+		&api.Service{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "one", Name: "one"},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{NodePort: 111}},
+			Spec: api.ServiceSpec{
+				Ports: []api.ServicePort{{NodePort: 111}},
 			},
 		},
-		&corev1.Service{
+		&api.Service{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "two", Name: "two"},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{NodePort: 122}, {NodePort: 133}},
+			Spec: api.ServiceSpec{
+				Ports: []api.ServicePort{{NodePort: 122}, {NodePort: 133}},
 			},
 		},
-		&corev1.Service{ // outside range, will be dropped
+		&api.Service{ // outside range, will be dropped
 			ObjectMeta: metav1.ObjectMeta{Namespace: "three", Name: "three"},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{NodePort: 201}},
+			Spec: api.ServiceSpec{
+				Ports: []api.ServicePort{{NodePort: 201}},
 			},
 		},
-		&corev1.Service{ // empty, ignored
+		&api.Service{ // empty, ignored
 			ObjectMeta: metav1.ObjectMeta{Namespace: "four", Name: "four"},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{}},
+			Spec: api.ServiceSpec{
+				Ports: []api.ServicePort{{}},
 			},
 		},
-		&corev1.Service{ // duplicate, dropped
+		&api.Service{ // duplicate, dropped
 			ObjectMeta: metav1.ObjectMeta{Namespace: "five", Name: "five"},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{NodePort: 111}},
+			Spec: api.ServiceSpec{
+				Ports: []api.ServicePort{{NodePort: 111}},
 			},
 		},
-		&corev1.Service{
+		&api.Service{
 			ObjectMeta: metav1.ObjectMeta{Namespace: "six", Name: "six"},
-			Spec: corev1.ServiceSpec{
+			Spec: api.ServiceSpec{
 				HealthCheckNodePort: 144,
 			},
 		},

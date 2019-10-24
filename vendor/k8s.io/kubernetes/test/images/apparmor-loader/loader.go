@@ -29,7 +29,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 var (
@@ -53,19 +53,19 @@ func main() {
 
 	dirs = flag.Args()
 	if len(dirs) == 0 {
-		klog.Errorf("Must specify at least one directory.")
+		glog.Errorf("Must specify at least one directory.")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	// Check that the required parser binary is found.
 	if _, err := exec.LookPath(parser); err != nil {
-		klog.Exitf("Required binary %s not found in PATH", parser)
+		glog.Exitf("Required binary %s not found in PATH", parser)
 	}
 
 	// Check that loaded profiles can be read.
 	if _, err := getLoadedProfiles(); err != nil {
-		klog.Exitf("Unable to access apparmor profiles: %v", err)
+		glog.Exitf("Unable to access apparmor profiles: %v", err)
 	}
 
 	if *poll < 0 {
@@ -79,26 +79,26 @@ func main() {
 func runOnce() {
 	if success, newProfiles := loadNewProfiles(); !success {
 		if len(newProfiles) > 0 {
-			klog.Exitf("Not all profiles were successfully loaded. Loaded: %v", newProfiles)
+			glog.Exitf("Not all profiles were successfully loaded. Loaded: %v", newProfiles)
 		} else {
-			klog.Exit("Error loading profiles.")
+			glog.Exit("Error loading profiles.")
 		}
 	} else {
 		if len(newProfiles) > 0 {
-			klog.Infof("Successfully loaded profiles: %v", newProfiles)
+			glog.Infof("Successfully loaded profiles: %v", newProfiles)
 		} else {
-			klog.Warning("No new profiles found.")
+			glog.Warning("No new profiles found.")
 		}
 	}
 }
 
 // Poll the directories indefinitely.
 func pollForever() {
-	klog.V(2).Infof("Polling %s every %s", strings.Join(dirs, ", "), poll.String())
+	glog.V(2).Infof("Polling %s every %s", strings.Join(dirs, ", "), poll.String())
 	pollFn := func() {
 		_, newProfiles := loadNewProfiles()
 		if len(newProfiles) > 0 {
-			klog.V(2).Infof("Successfully loaded profiles: %v", newProfiles)
+			glog.V(2).Infof("Successfully loaded profiles: %v", newProfiles)
 		}
 	}
 	pollFn() // Run immediately.
@@ -111,7 +111,7 @@ func pollForever() {
 func loadNewProfiles() (success bool, newProfiles []string) {
 	loadedProfiles, err := getLoadedProfiles()
 	if err != nil {
-		klog.Errorf("Error reading loaded profiles: %v", err)
+		glog.Errorf("Error reading loaded profiles: %v", err)
 		return false, nil
 	}
 
@@ -119,7 +119,7 @@ func loadNewProfiles() (success bool, newProfiles []string) {
 	for _, dir := range dirs {
 		infos, err := ioutil.ReadDir(dir)
 		if err != nil {
-			klog.Warningf("Error reading %s: %v", dir, err)
+			glog.Warningf("Error reading %s: %v", dir, err)
 			success = false
 			continue
 		}
@@ -129,26 +129,26 @@ func loadNewProfiles() (success bool, newProfiles []string) {
 			// If directory, or symlink to a directory, skip it.
 			resolvedInfo, err := resolveSymlink(dir, info)
 			if err != nil {
-				klog.Warningf("Error resolving symlink: %v", err)
+				glog.Warningf("Error resolving symlink: %v", err)
 				continue
 			}
 			if resolvedInfo.IsDir() {
 				// Directory listing is shallow.
-				klog.V(4).Infof("Skipping directory %s", path)
+				glog.V(4).Infof("Skipping directory %s", path)
 				continue
 			}
 
-			klog.V(4).Infof("Scanning %s for new profiles", path)
+			glog.V(4).Infof("Scanning %s for new profiles", path)
 			profiles, err := getProfileNames(path)
 			if err != nil {
-				klog.Warningf("Error reading %s: %v", path, err)
+				glog.Warningf("Error reading %s: %v", path, err)
 				success = false
 				continue
 			}
 
 			if unloadedProfiles(loadedProfiles, profiles) {
 				if err := loadProfiles(path); err != nil {
-					klog.Errorf("Could not load profiles: %v", err)
+					glog.Errorf("Could not load profiles: %v", err)
 					success = false
 					continue
 				}
@@ -171,7 +171,7 @@ func getProfileNames(path string) ([]string, error) {
 	out, err := cmd.Output()
 	if err != nil {
 		if stderr.Len() > 0 {
-			klog.Warning(stderr.String())
+			glog.Warning(stderr.String())
 		}
 		return nil, fmt.Errorf("error reading profiles from %s: %v", path, err)
 	}
@@ -194,10 +194,10 @@ func loadProfiles(path string) error {
 	stderr := &bytes.Buffer{}
 	cmd.Stderr = stderr
 	out, err := cmd.Output()
-	klog.V(2).Infof("Loading profiles from %s:\n%s", path, out)
+	glog.V(2).Infof("Loading profiles from %s:\n%s", path, out)
 	if err != nil {
 		if stderr.Len() > 0 {
-			klog.Warning(stderr.String())
+			glog.Warning(stderr.String())
 		}
 		return fmt.Errorf("error loading profiles from %s: %v", path, err)
 	}

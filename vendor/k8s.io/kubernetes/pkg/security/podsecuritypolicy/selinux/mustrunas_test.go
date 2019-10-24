@@ -17,10 +17,8 @@ limitations under the License.
 package selinux
 
 import (
-	corev1 "k8s.io/api/core/v1"
-	policy "k8s.io/api/policy/v1beta1"
 	api "k8s.io/kubernetes/pkg/apis/core"
-	"k8s.io/kubernetes/pkg/apis/core/v1"
+	"k8s.io/kubernetes/pkg/apis/policy"
 	"reflect"
 	"strings"
 	"testing"
@@ -40,7 +38,7 @@ func TestMustRunAsOptions(t *testing.T) {
 			pass: false,
 		},
 		"valid opts": {
-			opts: &policy.SELinuxStrategyOptions{SELinuxOptions: &corev1.SELinuxOptions{}},
+			opts: &policy.SELinuxStrategyOptions{SELinuxOptions: &api.SELinuxOptions{}},
 			pass: true,
 		},
 	}
@@ -57,7 +55,7 @@ func TestMustRunAsOptions(t *testing.T) {
 
 func TestMustRunAsGenerate(t *testing.T) {
 	opts := &policy.SELinuxStrategyOptions{
-		SELinuxOptions: &corev1.SELinuxOptions{
+		SELinuxOptions: &api.SELinuxOptions{
 			User:  "user",
 			Role:  "role",
 			Type:  "type",
@@ -72,16 +70,14 @@ func TestMustRunAsGenerate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error generating selinux %v", err)
 	}
-	internalSELinuxOptions := &api.SELinuxOptions{}
-	v1.Convert_v1_SELinuxOptions_To_core_SELinuxOptions(opts.SELinuxOptions, internalSELinuxOptions, nil)
-	if !reflect.DeepEqual(generated, internalSELinuxOptions) {
+	if !reflect.DeepEqual(generated, opts.SELinuxOptions) {
 		t.Errorf("generated selinux does not equal configured selinux")
 	}
 }
 
 func TestMustRunAsValidate(t *testing.T) {
-	newValidOpts := func() *corev1.SELinuxOptions {
-		return &corev1.SELinuxOptions{
+	newValidOpts := func() *api.SELinuxOptions {
+		return &api.SELinuxOptions{
 			User:  "user",
 			Role:  "role",
 			Level: "s0:c0,c6",
@@ -89,7 +85,7 @@ func TestMustRunAsValidate(t *testing.T) {
 		}
 	}
 
-	newValidOptsWithLevel := func(level string) *corev1.SELinuxOptions {
+	newValidOptsWithLevel := func(level string) *api.SELinuxOptions {
 		opts := newValidOpts()
 		opts.Level = level
 		return opts
@@ -107,8 +103,8 @@ func TestMustRunAsValidate(t *testing.T) {
 	validOpts := newValidOpts()
 
 	tests := map[string]struct {
-		podSeLinux  *corev1.SELinuxOptions
-		pspSeLinux  *corev1.SELinuxOptions
+		podSeLinux  *api.SELinuxOptions
+		pspSeLinux  *api.SELinuxOptions
 		expectedMsg string
 	}{
 		"invalid role": {
@@ -158,9 +154,7 @@ func TestMustRunAsValidate(t *testing.T) {
 			continue
 		}
 
-		internalSELinuxOptions := api.SELinuxOptions{}
-		v1.Convert_v1_SELinuxOptions_To_core_SELinuxOptions(tc.podSeLinux, &internalSELinuxOptions, nil)
-		errs := mustRunAs.Validate(nil, nil, nil, &internalSELinuxOptions)
+		errs := mustRunAs.Validate(nil, nil, nil, tc.podSeLinux)
 		//should've passed but didn't
 		if len(tc.expectedMsg) == 0 && len(errs) > 0 {
 			t.Errorf("%s expected no errors but received %v", name, errs)

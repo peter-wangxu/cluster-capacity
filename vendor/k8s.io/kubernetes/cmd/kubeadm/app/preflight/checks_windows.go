@@ -19,15 +19,14 @@ limitations under the License.
 package preflight
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // Check validates if an user has elevated (administrator) privileges.
-func (ipuc IsPrivilegedUserCheck) Check() (warnings, errorList []error) {
-	errorList = []error{}
+func (ipuc IsPrivilegedUserCheck) Check() (warnings, errors []error) {
+	errors = []error{}
 
 	// The "Well-known SID" of Administrator group is S-1-5-32-544
 	// The following powershell will return "True" if run as an administrator, "False" otherwise
@@ -36,10 +35,10 @@ func (ipuc IsPrivilegedUserCheck) Check() (warnings, errorList []error) {
 	isAdmin, err := exec.Command("powershell", args...).Output()
 
 	if err != nil {
-		errorList = append(errorList, errors.Wrap(err, "unable to determine if user is running as administrator"))
+		errors = append(errors, fmt.Errorf("unable to determine if user is running as administrator: %s", err))
 	} else if strings.EqualFold(strings.TrimSpace(string(isAdmin)), "false") {
-		errorList = append(errorList, errors.New("user is not running as administrator"))
+		errors = append(errors, fmt.Errorf("user is not running as administrator"))
 	}
 
-	return nil, errorList
+	return nil, errors
 }

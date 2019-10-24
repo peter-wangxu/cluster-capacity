@@ -14,8 +14,6 @@
 
 FROM BASEIMAGE
 
-RUN clean-install bash
-
 ADD kube-addons.sh /opt/
 ADD namespace.yaml /opt/
 ADD kubectl /usr/local/bin/

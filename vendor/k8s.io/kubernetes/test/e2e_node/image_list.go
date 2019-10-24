@@ -23,7 +23,7 @@ import (
 	"os/user"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	internalapi "k8s.io/kubernetes/pkg/kubelet/apis/cri"
@@ -143,7 +143,7 @@ func PrePullAllImages() error {
 		return err
 	}
 	images := framework.ImageWhiteList.List()
-	klog.V(4).Infof("Pre-pulling images with %s %+v", puller.Name(), images)
+	glog.V(4).Infof("Pre-pulling images with %s %+v", puller.Name(), images)
 	for _, image := range images {
 		var (
 			err    error
@@ -156,11 +156,11 @@ func PrePullAllImages() error {
 			if output, err = puller.Pull(image); err == nil {
 				break
 			}
-			klog.Warningf("Failed to pull %s as user %q, retrying in %s (%d of %d): %v",
+			glog.Warningf("Failed to pull %s as user %q, retrying in %s (%d of %d): %v",
 				image, usr.Username, imagePullRetryDelay.String(), i+1, maxImagePullRetries, err)
 		}
 		if err != nil {
-			klog.Warningf("Could not pre-pull image %s %v output: %s", image, err, output)
+			glog.Warningf("Could not pre-pull image %s %v output: %s", image, err, output)
 			return err
 		}
 	}

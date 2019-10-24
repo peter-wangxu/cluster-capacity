@@ -24,11 +24,10 @@ import (
 	"time"
 
 	"github.com/go-openapi/spec"
+	"github.com/golang/glog"
 	"github.com/pborman/uuid"
-	"k8s.io/klog"
 
 	apps "k8s.io/api/apps/v1beta1"
-	auditreg "k8s.io/api/auditregistration/v1alpha1"
 	autoscaling "k8s.io/api/autoscaling/v1"
 	certificates "k8s.io/api/certificates/v1beta1"
 	"k8s.io/api/core/v1"
@@ -83,11 +82,9 @@ func (alwaysAllow) Authorize(requestAttributes authorizer.Attributes) (authorize
 }
 
 // alwaysEmpty simulates "no authentication" for old tests
-func alwaysEmpty(req *http.Request) (*authauthenticator.Response, bool, error) {
-	return &authauthenticator.Response{
-		User: &user.DefaultInfo{
-			Name: "",
-		},
+func alwaysEmpty(req *http.Request) (user.Info, bool, error) {
+	return &user.DefaultInfo{
+		Name: "",
 	}, true, nil
 }
 
@@ -178,14 +175,14 @@ func startMasterOrDie(masterConfig *master.Config, incomingServer *httptest.Serv
 
 	clientset, err := clientset.NewForConfig(masterConfig.GenericConfig.LoopbackClientConfig)
 	if err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 
 	masterConfig.ExtraConfig.VersionedInformers = informers.NewSharedInformerFactory(clientset, masterConfig.GenericConfig.LoopbackClientConfig.Timeout)
 	m, err = masterConfig.Complete().New(genericapiserver.NewEmptyDelegate())
 	if err != nil {
 		closeFn()
-		klog.Fatalf("error in bringing up the master: %v", err)
+		glog.Fatalf("error in bringing up the master: %v", err)
 	}
 	if masterReceiver != nil {
 		masterReceiver.SetMaster(m)
@@ -202,7 +199,7 @@ func startMasterOrDie(masterConfig *master.Config, incomingServer *httptest.Serv
 	privilegedClient, err := restclient.RESTClientFor(&cfg)
 	if err != nil {
 		closeFn()
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 	var lastHealthContent []byte
 	err = wait.PollImmediate(100*time.Millisecond, 30*time.Second, func() (bool, error) {
@@ -217,8 +214,8 @@ func startMasterOrDie(masterConfig *master.Config, incomingServer *httptest.Serv
 	})
 	if err != nil {
 		closeFn()
-		klog.Errorf("last health content: %q", string(lastHealthContent))
-		klog.Fatal(err)
+		glog.Errorf("last health content: %q", string(lastHealthContent))
+		glog.Fatal(err)
 	}
 
 	return m, s, closeFn
@@ -291,10 +288,6 @@ func NewMasterConfig() *master.Config {
 		ns)
 	storageFactory.SetSerializer(
 		schema.GroupResource{Group: storage.GroupName, Resource: serverstorage.AllResources},
-		"",
-		ns)
-	storageFactory.SetSerializer(
-		schema.GroupResource{Group: auditreg.GroupName, Resource: serverstorage.AllResources},
 		"",
 		ns)
 

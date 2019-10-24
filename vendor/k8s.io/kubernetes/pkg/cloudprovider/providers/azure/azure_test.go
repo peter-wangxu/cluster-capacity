@@ -35,7 +35,7 @@ import (
 	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-03-01/compute"
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2018-07-01/network"
+	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2017-09-01/network"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/stretchr/testify/assert"
 )
@@ -949,7 +949,7 @@ func getTestCloud() (az *Cloud) {
 			RouteTableName:               "rt",
 			PrimaryAvailabilitySetName:   "as",
 			MaximumLoadBalancerRuleCount: 250,
-			VMType:                       vmTypeStandard,
+			VMType: vmTypeStandard,
 		},
 		nodeZones:          map[string]sets.String{},
 		nodeInformerSynced: func() bool { return true },
@@ -1883,8 +1883,8 @@ func TestIfServiceSpecifiesSharedRuleAndRuleExistsThenTheServicesPortAndAddressA
 				SourceAddressPrefix:      to.StringPtr("Internet"),
 				DestinationPortRange:     to.StringPtr("80"),
 				DestinationAddressPrefix: to.StringPtr("192.168.33.44"),
-				Access:                   network.SecurityRuleAccessAllow,
-				Direction:                network.SecurityRuleDirectionInbound,
+				Access:    network.SecurityRuleAccessAllow,
+				Direction: network.SecurityRuleDirectionInbound,
 			},
 		},
 	}

@@ -41,21 +41,18 @@ func TestPrintConfiguration(t *testing.T) {
 						DataDir: "/some/path",
 					},
 				},
-				DNS: kubeadmapi.DNS{
-					Type: kubeadmapi.CoreDNS,
-				},
 			},
 			expectedBytes: []byte(`[upgrade/config] Configuration used:
-	apiServer: {}
-	apiVersion: kubeadm.k8s.io/v1beta1
+	apiVersion: kubeadm.k8s.io/v1alpha3
+	auditPolicy:
+	  logDir: ""
+	  path: ""
 	certificatesDir: ""
 	controlPlaneEndpoint: ""
-	controllerManager: {}
-	dns:
-	  type: CoreDNS
 	etcd:
 	  local:
 	    dataDir: /some/path
+	    image: ""
 	imageRepository: ""
 	kind: ClusterConfiguration
 	kubernetesVersion: v1.7.1
@@ -63,7 +60,7 @@ func TestPrintConfiguration(t *testing.T) {
 	  dnsDomain: ""
 	  podSubnet: ""
 	  serviceSubnet: ""
-	scheduler: {}
+	unifiedControlPlaneImage: ""
 `),
 		},
 		{
@@ -77,18 +74,14 @@ func TestPrintConfiguration(t *testing.T) {
 						Endpoints: []string{"https://one-etcd-instance:2379"},
 					},
 				},
-				DNS: kubeadmapi.DNS{
-					Type: kubeadmapi.CoreDNS,
-				},
 			},
 			expectedBytes: []byte(`[upgrade/config] Configuration used:
-	apiServer: {}
-	apiVersion: kubeadm.k8s.io/v1beta1
+	apiVersion: kubeadm.k8s.io/v1alpha3
+	auditPolicy:
+	  logDir: ""
+	  path: ""
 	certificatesDir: ""
 	controlPlaneEndpoint: ""
-	controllerManager: {}
-	dns:
-	  type: CoreDNS
 	etcd:
 	  external:
 	    caFile: ""
@@ -103,7 +96,7 @@ func TestPrintConfiguration(t *testing.T) {
 	  dnsDomain: ""
 	  podSubnet: ""
 	  serviceSubnet: 10.96.0.1/12
-	scheduler: {}
+	unifiedControlPlaneImage: ""
 `),
 		},
 	}

@@ -21,9 +21,9 @@ import (
 
 	"reflect"
 
-	corev1 "k8s.io/api/core/v1"
-	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 )
 
 func TestProtocolsForObject(t *testing.T) {
@@ -32,30 +32,14 @@ func TestProtocolsForObject(t *testing.T) {
 		expectErr bool
 	}{
 		{
-			object: &corev1.Pod{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
+			object: &api.Pod{
+				Spec: api.PodSpec{
+					Containers: []api.Container{
 						{
-							Ports: []corev1.ContainerPort{
+							Ports: []api.ContainerPort{
 								{
 									ContainerPort: 101,
-									Protocol:      "TCP",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		// No protocol--should default to TCP.
-		{
-			object: &corev1.Pod{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Ports: []corev1.ContainerPort{
-								{
-									ContainerPort: 101,
+									Protocol:      "tcp",
 								},
 							},
 						},
@@ -64,40 +48,28 @@ func TestProtocolsForObject(t *testing.T) {
 			},
 		},
 		{
-			object: &corev1.Service{
-				Spec: corev1.ServiceSpec{
-					Ports: []corev1.ServicePort{
+			object: &api.Service{
+				Spec: api.ServiceSpec{
+					Ports: []api.ServicePort{
 						{
 							Port:     101,
-							Protocol: "TCP",
-						},
-					},
-				},
-			},
-		},
-		// No protocol for service port--default to TCP
-		{
-			object: &corev1.Service{
-				Spec: corev1.ServiceSpec{
-					Ports: []corev1.ServicePort{
-						{
-							Port: 101,
+							Protocol: "tcp",
 						},
 					},
 				},
 			},
 		},
 		{
-			object: &corev1.ReplicationController{
-				Spec: corev1.ReplicationControllerSpec{
-					Template: &corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
+			object: &api.ReplicationController{
+				Spec: api.ReplicationControllerSpec{
+					Template: &api.PodTemplateSpec{
+						Spec: api.PodSpec{
+							Containers: []api.Container{
 								{
-									Ports: []corev1.ContainerPort{
+									Ports: []api.ContainerPort{
 										{
 											ContainerPort: 101,
-											Protocol:      "TCP",
+											Protocol:      "tcp",
 										},
 									},
 								},
@@ -108,16 +80,16 @@ func TestProtocolsForObject(t *testing.T) {
 			},
 		},
 		{
-			object: &extensionsv1beta1.Deployment{
-				Spec: extensionsv1beta1.DeploymentSpec{
-					Template: corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
+			object: &extensions.Deployment{
+				Spec: extensions.DeploymentSpec{
+					Template: api.PodTemplateSpec{
+						Spec: api.PodSpec{
+							Containers: []api.Container{
 								{
-									Ports: []corev1.ContainerPort{
+									Ports: []api.ContainerPort{
 										{
 											ContainerPort: 101,
-											Protocol:      "TCP",
+											Protocol:      "tcp",
 										},
 									},
 								},
@@ -128,16 +100,16 @@ func TestProtocolsForObject(t *testing.T) {
 			},
 		},
 		{
-			object: &extensionsv1beta1.ReplicaSet{
-				Spec: extensionsv1beta1.ReplicaSetSpec{
-					Template: corev1.PodTemplateSpec{
-						Spec: corev1.PodSpec{
-							Containers: []corev1.Container{
+			object: &extensions.ReplicaSet{
+				Spec: extensions.ReplicaSetSpec{
+					Template: api.PodTemplateSpec{
+						Spec: api.PodSpec{
+							Containers: []api.Container{
 								{
-									Ports: []corev1.ContainerPort{
+									Ports: []api.ContainerPort{
 										{
 											ContainerPort: 101,
-											Protocol:      "TCP",
+											Protocol:      "tcp",
 										},
 									},
 								},
@@ -148,11 +120,11 @@ func TestProtocolsForObject(t *testing.T) {
 			},
 		},
 		{
-			object:    &corev1.Node{},
+			object:    &api.Node{},
 			expectErr: true,
 		},
 	}
-	expectedPorts := map[string]string{"101": "TCP"}
+	expectedPorts := map[string]string{"101": "tcp"}
 
 	for _, test := range tests {
 		actual, err := protocolsForObject(test.object)

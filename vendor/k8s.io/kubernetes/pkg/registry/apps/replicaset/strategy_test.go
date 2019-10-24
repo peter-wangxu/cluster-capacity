@@ -24,8 +24,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/kubernetes/pkg/apis/apps"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 )
 
 const (
@@ -57,13 +57,13 @@ func TestReplicaSetStrategy(t *testing.T) {
 			},
 		},
 	}
-	rs := &apps.ReplicaSet{
+	rs := &extensions.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{Name: "abc", Namespace: metav1.NamespaceDefault},
-		Spec: apps.ReplicaSetSpec{
+		Spec: extensions.ReplicaSetSpec{
 			Selector: &metav1.LabelSelector{MatchLabels: validSelector},
 			Template: validPodTemplate.Template,
 		},
-		Status: apps.ReplicaSetStatus{
+		Status: extensions.ReplicaSetStatus{
 			Replicas:           1,
 			ObservedGeneration: int64(10),
 		},
@@ -81,7 +81,7 @@ func TestReplicaSetStrategy(t *testing.T) {
 		t.Errorf("Unexpected error validating %v", errs)
 	}
 
-	invalidRc := &apps.ReplicaSet{
+	invalidRc := &extensions.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{Name: "bar", ResourceVersion: "4"},
 	}
 	Strategy.PrepareForUpdate(ctx, invalidRc, rs)
@@ -115,26 +115,26 @@ func TestReplicaSetStatusStrategy(t *testing.T) {
 			},
 		},
 	}
-	oldRS := &apps.ReplicaSet{
+	oldRS := &extensions.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{Name: "abc", Namespace: metav1.NamespaceDefault, ResourceVersion: "10"},
-		Spec: apps.ReplicaSetSpec{
+		Spec: extensions.ReplicaSetSpec{
 			Replicas: 3,
 			Selector: &metav1.LabelSelector{MatchLabels: validSelector},
 			Template: validPodTemplate.Template,
 		},
-		Status: apps.ReplicaSetStatus{
+		Status: extensions.ReplicaSetStatus{
 			Replicas:           1,
 			ObservedGeneration: int64(10),
 		},
 	}
-	newRS := &apps.ReplicaSet{
+	newRS := &extensions.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{Name: "abc", Namespace: metav1.NamespaceDefault, ResourceVersion: "9"},
-		Spec: apps.ReplicaSetSpec{
+		Spec: extensions.ReplicaSetSpec{
 			Replicas: 1,
 			Selector: &metav1.LabelSelector{MatchLabels: validSelector},
 			Template: validPodTemplate.Template,
 		},
-		Status: apps.ReplicaSetStatus{
+		Status: extensions.ReplicaSetStatus{
 			Replicas:           3,
 			ObservedGeneration: int64(11),
 		},
@@ -203,14 +203,14 @@ func TestSelectorImmutability(t *testing.T) {
 	}
 }
 
-func newReplicaSetWithSelectorLabels(selectorLabels map[string]string) *apps.ReplicaSet {
-	return &apps.ReplicaSet{
+func newReplicaSetWithSelectorLabels(selectorLabels map[string]string) *extensions.ReplicaSet {
+	return &extensions.ReplicaSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            replicasetName,
 			Namespace:       namespace,
 			ResourceVersion: "1",
 		},
-		Spec: apps.ReplicaSetSpec{
+		Spec: extensions.ReplicaSetSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels:      selectorLabels,
 				MatchExpressions: []metav1.LabelSelectorRequirement{},

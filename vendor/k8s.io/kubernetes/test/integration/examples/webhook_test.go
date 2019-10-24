@@ -109,9 +109,8 @@ func (f auditChecker) LevelAndStages(attrs authorizer.Attributes) (auditinternal
 
 type auditSinkFunc func(events ...*auditinternal.Event)
 
-func (f auditSinkFunc) ProcessEvents(events ...*auditinternal.Event) bool {
+func (f auditSinkFunc) ProcessEvents(events ...*auditinternal.Event) {
 	f(events...)
-	return true
 }
 
 func (auditSinkFunc) Run(stopCh <-chan struct{}) error {

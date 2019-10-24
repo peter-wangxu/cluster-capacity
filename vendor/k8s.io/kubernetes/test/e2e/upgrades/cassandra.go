@@ -29,10 +29,9 @@ import (
 	. "github.com/onsi/gomega"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/version"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/kubernetes/pkg/util/version"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"k8s.io/kubernetes/test/e2e/framework/testfiles"
 )
 
 const cassandraManifestPath = "test/e2e/testing-manifests/statefulset/cassandra"
@@ -60,8 +59,8 @@ func (CassandraUpgradeTest) Skip(upgCtx UpgradeContext) bool {
 }
 
 func cassandraKubectlCreate(ns, file string) {
-	input := string(testfiles.ReadOrDie(filepath.Join(cassandraManifestPath, file), Fail))
-	framework.RunKubectlOrDieInput(input, "create", "-f", "-", fmt.Sprintf("--namespace=%s", ns))
+	path := filepath.Join(framework.TestContext.RepoRoot, cassandraManifestPath, file)
+	framework.RunKubectlOrDie("create", "-f", path, fmt.Sprintf("--namespace=%s", ns))
 }
 
 // Setup creates a Cassandra StatefulSet and a PDB. It also brings up a tester

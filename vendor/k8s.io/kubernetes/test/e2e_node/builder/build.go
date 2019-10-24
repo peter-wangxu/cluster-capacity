@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 	"k8s.io/kubernetes/test/utils"
 )
 
@@ -38,7 +38,7 @@ var buildTargets = []string{
 }
 
 func BuildGo() error {
-	klog.Infof("Building k8s binaries...")
+	glog.Infof("Building k8s binaries...")
 	k8sRoot, err := utils.GetK8sRootDir()
 	if err != nil {
 		return fmt.Errorf("failed to locate kubernetes root directory %v.", err)
@@ -90,7 +90,7 @@ func getK8sBin(bin string) (string, error) {
 func GetKubeletServerBin() string {
 	bin, err := getK8sBin("kubelet")
 	if err != nil {
-		klog.Fatalf("Could not locate kubelet binary %v.", err)
+		glog.Fatalf("Could not locate kubelet binary %v.", err)
 	}
 	return bin
 }

@@ -20,7 +20,7 @@ import (
 	"errors"
 	"io"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apiserver/pkg/admission"
 )
@@ -60,7 +60,7 @@ func (alwaysDeny) Handles(operation admission.Operation) bool {
 // NewAlwaysDeny creates an always deny admission handler
 func NewAlwaysDeny() admission.Interface {
 	// DEPRECATED: AlwaysDeny denys all admission request, it is no use.
-	klog.Warningf("%s admission controller is deprecated. "+
+	glog.Warningf("%s admission controller is deprecated. "+
 		"Please remove this controller from your configuration files and scripts.", PluginName)
 	return new(alwaysDeny)
 }

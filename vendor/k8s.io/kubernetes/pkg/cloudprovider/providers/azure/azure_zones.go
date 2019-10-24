@@ -23,9 +23,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/types"
-	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/klog"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
 // makeZone returns the zone value in format of <region>-<zone-id>.
@@ -68,7 +68,7 @@ func (az *Cloud) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
 			}
 			zone = az.makeZone(zoneID)
 		} else {
-			klog.V(3).Infof("Availability zone is not enabled for the node, falling back to fault domain")
+			glog.V(3).Infof("Availability zone is not enabled for the node, falling back to fault domain")
 			zone = metadata.Compute.FaultDomain
 		}
 
@@ -91,7 +91,7 @@ func (az *Cloud) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
 func (az *Cloud) GetZoneByProviderID(ctx context.Context, providerID string) (cloudprovider.Zone, error) {
 	// Returns nil for unmanaged nodes because azure cloud provider couldn't fetch information for them.
 	if az.IsNodeUnmanagedByProviderID(providerID) {
-		klog.V(2).Infof("GetZoneByProviderID: omitting unmanaged node %q", providerID)
+		glog.V(2).Infof("GetZoneByProviderID: omitting unmanaged node %q", providerID)
 		return cloudprovider.Zone{}, nil
 	}
 
@@ -113,7 +113,7 @@ func (az *Cloud) GetZoneByNodeName(ctx context.Context, nodeName types.NodeName)
 		return cloudprovider.Zone{}, err
 	}
 	if unmanaged {
-		klog.V(2).Infof("GetZoneByNodeName: omitting unmanaged node %q", nodeName)
+		glog.V(2).Infof("GetZoneByNodeName: omitting unmanaged node %q", nodeName)
 		return cloudprovider.Zone{}, nil
 	}
 

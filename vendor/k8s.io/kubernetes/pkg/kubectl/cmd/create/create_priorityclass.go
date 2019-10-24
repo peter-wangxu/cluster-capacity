@@ -20,11 +20,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/kubernetes/pkg/kubectl"
+	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-	"k8s.io/kubernetes/pkg/kubectl/generate"
-	generateversioned "k8s.io/kubernetes/pkg/kubectl/generate/versioned"
 	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
-	"k8s.io/kubernetes/pkg/kubectl/util/templates"
 )
 
 var (
@@ -50,7 +49,7 @@ func NewCmdCreatePriorityClass(f cmdutil.Factory, ioStreams genericclioptions.IO
 	}
 
 	cmd := &cobra.Command{
-		Use:                   "priorityclass NAME --value=VALUE --global-default=BOOL [--dry-run]",
+		Use: "priorityclass NAME --value=VALUE --global-default=BOOL [--dry-run]",
 		DisableFlagsInUseLine: true,
 		Aliases:               []string{"pc"},
 		Short:                 i18n.T("Create a priorityclass with the specified name."),
@@ -66,7 +65,7 @@ func NewCmdCreatePriorityClass(f cmdutil.Factory, ioStreams genericclioptions.IO
 
 	cmdutil.AddApplyAnnotationFlags(cmd)
 	cmdutil.AddValidateFlags(cmd)
-	cmdutil.AddGeneratorFlags(cmd, generateversioned.PriorityClassV1Alpha1GeneratorName)
+	cmdutil.AddGeneratorFlags(cmd, cmdutil.PriorityClassV1Alpha1GeneratorName)
 
 	cmd.Flags().Int32("value", 0, i18n.T("the value of this priority class."))
 	cmd.Flags().Bool("global-default", false, i18n.T("global-default specifies whether this PriorityClass should be considered as the default priority."))
@@ -80,10 +79,10 @@ func (o *PriorityClassOpts) Complete(f cmdutil.Factory, cmd *cobra.Command, args
 		return err
 	}
 
-	var generator generate.StructuredGenerator
+	var generator kubectl.StructuredGenerator
 	switch generatorName := cmdutil.GetFlagString(cmd, "generator"); generatorName {
-	case generateversioned.PriorityClassV1Alpha1GeneratorName:
-		generator = &generateversioned.PriorityClassV1Generator{
+	case cmdutil.PriorityClassV1Alpha1GeneratorName:
+		generator = &kubectl.PriorityClassV1Generator{
 			Name:          name,
 			Value:         cmdutil.GetFlagInt32(cmd, "value"),
 			GlobalDefault: cmdutil.GetFlagBool(cmd, "global-default"),

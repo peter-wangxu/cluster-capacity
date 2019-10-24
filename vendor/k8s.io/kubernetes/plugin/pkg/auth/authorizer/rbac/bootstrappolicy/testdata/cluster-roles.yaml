@@ -882,6 +882,7 @@ items:
     resources:
     - nodes
     verbs:
+    - delete
     - patch
     - update
   - apiGroups:

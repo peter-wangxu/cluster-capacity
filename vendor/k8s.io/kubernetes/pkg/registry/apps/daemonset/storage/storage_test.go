@@ -26,13 +26,13 @@ import (
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistrytest "k8s.io/apiserver/pkg/registry/generic/testing"
 	etcdtesting "k8s.io/apiserver/pkg/storage/etcd/testing"
-	"k8s.io/kubernetes/pkg/apis/apps"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/apis/extensions"
 	"k8s.io/kubernetes/pkg/registry/registrytest"
 )
 
 func newStorage(t *testing.T) (*REST, *StatusREST, *etcdtesting.EtcdTestServer) {
-	etcdStorage, server := registrytest.NewEtcdStorage(t, apps.GroupName)
+	etcdStorage, server := registrytest.NewEtcdStorage(t, extensions.GroupName)
 	restOptions := generic.RESTOptions{
 		StorageConfig:           etcdStorage,
 		Decorator:               generic.UndecoratedStorage,
@@ -43,16 +43,15 @@ func newStorage(t *testing.T) (*REST, *StatusREST, *etcdtesting.EtcdTestServer) 
 	return daemonSetStorage, statusStorage, server
 }
 
-func newValidDaemonSet() *apps.DaemonSet {
-	return &apps.DaemonSet{
+func newValidDaemonSet() *extensions.DaemonSet {
+	return &extensions.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
 			Namespace: metav1.NamespaceDefault,
-			Labels:    map[string]string{"a": "b"},
 		},
-		Spec: apps.DaemonSetSpec{
-			UpdateStrategy: apps.DaemonSetUpdateStrategy{
-				Type: apps.OnDeleteDaemonSetStrategyType,
+		Spec: extensions.DaemonSetSpec{
+			UpdateStrategy: extensions.DaemonSetUpdateStrategy{
+				Type: extensions.OnDeleteDaemonSetStrategyType,
 			},
 			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"a": "b"}},
 			Template: api.PodTemplateSpec{
@@ -89,15 +88,15 @@ func TestCreate(t *testing.T) {
 		// valid
 		ds,
 		// invalid (invalid selector)
-		&apps.DaemonSet{
-			Spec: apps.DaemonSetSpec{
+		&extensions.DaemonSet{
+			Spec: extensions.DaemonSetSpec{
 				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{}},
 				Template: validDaemonSet.Spec.Template,
 			},
 		},
 		// invalid update strategy
-		&apps.DaemonSet{
-			Spec: apps.DaemonSetSpec{
+		&extensions.DaemonSet{
+			Spec: extensions.DaemonSetSpec{
 				Selector: validDaemonSet.Spec.Selector,
 				Template: validDaemonSet.Spec.Template,
 			},
@@ -115,19 +114,19 @@ func TestUpdate(t *testing.T) {
 		newValidDaemonSet(),
 		// updateFunc
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*apps.DaemonSet)
+			object := obj.(*extensions.DaemonSet)
 			object.Spec.Template.Spec.NodeSelector = map[string]string{"c": "d"}
 			object.Spec.Template.Spec.DNSPolicy = api.DNSDefault
 			return object
 		},
 		// invalid updateFunc
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*apps.DaemonSet)
+			object := obj.(*extensions.DaemonSet)
 			object.Name = ""
 			return object
 		},
 		func(obj runtime.Object) runtime.Object {
-			object := obj.(*apps.DaemonSet)
+			object := obj.(*extensions.DaemonSet)
 			object.Spec.Template.Spec.RestartPolicy = api.RestartPolicyOnFailure
 			return object
 		},

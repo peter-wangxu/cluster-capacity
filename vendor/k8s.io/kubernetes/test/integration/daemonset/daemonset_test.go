@@ -47,9 +47,9 @@ import (
 	"k8s.io/kubernetes/pkg/controller/daemon"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/scheduler"
+	"k8s.io/kubernetes/pkg/scheduler/algorithm"
 	"k8s.io/kubernetes/pkg/scheduler/algorithmprovider"
 	_ "k8s.io/kubernetes/pkg/scheduler/algorithmprovider"
-	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	"k8s.io/kubernetes/pkg/scheduler/factory"
 	labelsutil "k8s.io/kubernetes/pkg/util/labels"
 	"k8s.io/kubernetes/test/integration/framework"
@@ -111,7 +111,7 @@ func setupScheduler(
 		PdbInformer:                    informerFactory.Policy().V1beta1().PodDisruptionBudgets(),
 		StorageClassInformer:           informerFactory.Storage().V1().StorageClasses(),
 		HardPodAffinitySymmetricWeight: v1.DefaultHardPodAffinitySymmetricWeight,
-		EnableEquivalenceClassCache:    false,
+		EnableEquivalenceClassCache:    true,
 		DisablePreemption:              false,
 		PercentageOfNodesToScore:       100,
 	})
@@ -278,11 +278,13 @@ func newNode(name string, label map[string]string) *v1.Node {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Labels:    label,
-			Namespace: metav1.NamespaceDefault,
+			Namespace: metav1.NamespaceNone,
 		},
 		Status: v1.NodeStatus{
 			Conditions:  []v1.NodeCondition{{Type: v1.NodeReady, Status: v1.ConditionTrue}},
 			Allocatable: v1.ResourceList{v1.ResourcePods: resource.MustParse("100")},
+			// minimum version required to use matchFields
+			NodeInfo: v1.NodeSystemInfo{KubeletVersion: "v1.11.0"},
 		},
 	}
 }
@@ -630,7 +632,7 @@ func TestDaemonSetWithNodeSelectorLaunchesPods(t *testing.T) {
 							{
 								MatchFields: []v1.NodeSelectorRequirement{
 									{
-										Key:      schedulerapi.NodeFieldSelectorKeyNodeName,
+										Key:      algorithm.NodeFieldSelectorKeyNodeName,
 										Operator: v1.NodeSelectorOpIn,
 										Values:   []string{"node-1"},
 									},
@@ -1059,7 +1061,7 @@ func TestUnschedulableNodeDaemonDoesLaunchPod(t *testing.T) {
 			node.Spec.Unschedulable = true
 			node.Spec.Taints = []v1.Taint{
 				{
-					Key:    schedulerapi.TaintNodeUnschedulable,
+					Key:    algorithm.TaintNodeUnschedulable,
 					Effect: v1.TaintEffectNoSchedule,
 				},
 			}
@@ -1077,7 +1079,7 @@ func TestUnschedulableNodeDaemonDoesLaunchPod(t *testing.T) {
 			}
 			nodeNU.Spec.Taints = []v1.Taint{
 				{
-					Key:    schedulerapi.TaintNodeNetworkUnavailable,
+					Key:    algorithm.TaintNodeNetworkUnavailable,
 					Effect: v1.TaintEffectNoSchedule,
 				},
 			}

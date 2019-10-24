@@ -26,9 +26,9 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/networking/v2/extensions/layer3/routers"
 	neutronports "github.com/gophercloud/gophercloud/openstack/networking/v2/ports"
 
+	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/types"
-	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/klog"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
 var errNoRouterID = errors.New("router-id not set in cloud provider config")
@@ -55,7 +55,7 @@ func NewRoutes(compute *gophercloud.ServiceClient, network *gophercloud.ServiceC
 
 // ListRoutes lists all managed routes that belong to the specified clusterName
 func (r *Routes) ListRoutes(ctx context.Context, clusterName string) ([]*cloudprovider.Route, error) {
-	klog.V(4).Infof("ListRoutes(%v)", clusterName)
+	glog.V(4).Infof("ListRoutes(%v)", clusterName)
 
 	nodeNamesByAddr := make(map[string]types.NodeName)
 	err := foreachServer(r.compute, servers.ListOpts{}, func(srv *servers.Server) (bool, error) {
@@ -109,12 +109,12 @@ func updateRoutes(network *gophercloud.ServiceClient, router *routers.Router, ne
 	}
 
 	unwinder := func() {
-		klog.V(4).Info("Reverting routes change to router ", router.ID)
+		glog.V(4).Info("Reverting routes change to router ", router.ID)
 		_, err := routers.Update(network, router.ID, routers.UpdateOpts{
 			Routes: origRoutes,
 		}).Extract()
 		if err != nil {
-			klog.Warning("Unable to reset routes during error unwind: ", err)
+			glog.Warning("Unable to reset routes during error unwind: ", err)
 		}
 	}
 
@@ -132,12 +132,12 @@ func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *neutron
 	}
 
 	unwinder := func() {
-		klog.V(4).Info("Reverting allowed-address-pairs change to port ", port.ID)
+		glog.V(4).Info("Reverting allowed-address-pairs change to port ", port.ID)
 		_, err := neutronports.Update(network, port.ID, neutronports.UpdateOpts{
 			AllowedAddressPairs: &origPairs,
 		}).Extract()
 		if err != nil {
-			klog.Warning("Unable to reset allowed-address-pairs during error unwind: ", err)
+			glog.Warning("Unable to reset allowed-address-pairs during error unwind: ", err)
 		}
 	}
 
@@ -146,7 +146,7 @@ func updateAllowedAddressPairs(network *gophercloud.ServiceClient, port *neutron
 
 // CreateRoute creates the described managed route
 func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint string, route *cloudprovider.Route) error {
-	klog.V(4).Infof("CreateRoute(%v, %v, %v)", clusterName, nameHint, route)
+	glog.V(4).Infof("CreateRoute(%v, %v, %v)", clusterName, nameHint, route)
 
 	onFailure := newCaller()
 
@@ -158,7 +158,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 		return err
 	}
 
-	klog.V(4).Infof("Using nexthop %v for node %v", addr, route.TargetNode)
+	glog.V(4).Infof("Using nexthop %v for node %v", addr, route.TargetNode)
 
 	router, err := routers.Get(r.network, r.opts.RouterID).Extract()
 	if err != nil {
@@ -169,7 +169,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 
 	for _, item := range routes {
 		if item.DestinationCIDR == route.DestinationCIDR && item.NextHop == addr {
-			klog.V(4).Infof("Skipping existing route: %v", route)
+			glog.V(4).Infof("Skipping existing route: %v", route)
 			return nil
 		}
 	}
@@ -198,7 +198,7 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 	found := false
 	for _, item := range port.AllowedAddressPairs {
 		if item.IPAddress == route.DestinationCIDR {
-			klog.V(4).Info("Found existing allowed-address-pair: ", item)
+			glog.V(4).Info("Found existing allowed-address-pair: ", item)
 			found = true
 			break
 		}
@@ -215,14 +215,14 @@ func (r *Routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 		defer onFailure.call(unwind)
 	}
 
-	klog.V(4).Infof("Route created: %v", route)
+	glog.V(4).Infof("Route created: %v", route)
 	onFailure.disarm()
 	return nil
 }
 
 // DeleteRoute deletes the specified managed route
 func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *cloudprovider.Route) error {
-	klog.V(4).Infof("DeleteRoute(%v, %v)", clusterName, route)
+	glog.V(4).Infof("DeleteRoute(%v, %v)", clusterName, route)
 
 	onFailure := newCaller()
 
@@ -255,7 +255,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 	}
 
 	if index == -1 {
-		klog.V(4).Infof("Skipping non-existent route: %v", route)
+		glog.V(4).Infof("Skipping non-existent route: %v", route)
 		return nil
 	}
 
@@ -301,7 +301,7 @@ func (r *Routes) DeleteRoute(ctx context.Context, clusterName string, route *clo
 		defer onFailure.call(unwind)
 	}
 
-	klog.V(4).Infof("Route deleted: %v", route)
+	glog.V(4).Infof("Route deleted: %v", route)
 	onFailure.disarm()
 	return nil
 }

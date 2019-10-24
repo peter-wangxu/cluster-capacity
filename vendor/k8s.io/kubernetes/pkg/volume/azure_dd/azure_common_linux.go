@@ -24,7 +24,7 @@ import (
 	"strconv"
 	libstrings "strings"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 	"k8s.io/kubernetes/pkg/util/mount"
 )
 
@@ -42,21 +42,21 @@ func listAzureDiskPath(io ioHandler) []string {
 			}
 		}
 	}
-	klog.V(12).Infof("Azure sys disks paths: %v", azureDiskList)
+	glog.V(12).Infof("Azure sys disks paths: %v", azureDiskList)
 	return azureDiskList
 }
 
 // getDiskLinkByDevName get disk link by device name from devLinkPath, e.g. /dev/disk/azure/, /dev/disk/by-id/
 func getDiskLinkByDevName(io ioHandler, devLinkPath, devName string) (string, error) {
 	dirs, err := io.ReadDir(devLinkPath)
-	klog.V(12).Infof("azureDisk - begin to find %s from %s", devName, devLinkPath)
+	glog.V(12).Infof("azureDisk - begin to find %s from %s", devName, devLinkPath)
 	if err == nil {
 		for _, f := range dirs {
 			diskPath := devLinkPath + f.Name()
-			klog.V(12).Infof("azureDisk - begin to Readlink: %s", diskPath)
+			glog.V(12).Infof("azureDisk - begin to Readlink: %s", diskPath)
 			link, linkErr := io.Readlink(diskPath)
 			if linkErr != nil {
-				klog.Warningf("azureDisk - read link (%s) error: %v", diskPath, linkErr)
+				glog.Warningf("azureDisk - read link (%s) error: %v", diskPath, linkErr)
 				continue
 			}
 			if libstrings.HasSuffix(link, devName) {
@@ -75,11 +75,11 @@ func scsiHostRescan(io ioHandler, exec mount.Exec) {
 			name := scsi_path + f.Name() + "/scan"
 			data := []byte("- - -")
 			if err = io.WriteFile(name, data, 0666); err != nil {
-				klog.Warningf("failed to rescan scsi host %s", name)
+				glog.Warningf("failed to rescan scsi host %s", name)
 			}
 		}
 	} else {
-		klog.Warningf("failed to read %s, err %v", scsi_path, err)
+		glog.Warningf("failed to read %s, err %v", scsi_path, err)
 	}
 }
 
@@ -101,10 +101,10 @@ func findDiskByLunWithConstraint(lun int, io ioHandler, azureDisks []string) (st
 				continue
 			}
 			if len(azureDisks) == 0 {
-				klog.V(4).Infof("/dev/disk/azure is not populated, now try to parse %v directly", name)
+				glog.V(4).Infof("/dev/disk/azure is not populated, now try to parse %v directly", name)
 				target, err := strconv.Atoi(arr[0])
 				if err != nil {
-					klog.Errorf("failed to parse target from %v (%v), err %v", arr[0], name, err)
+					glog.Errorf("failed to parse target from %v (%v), err %v", arr[0], name, err)
 					continue
 				}
 				// as observed, targets 0-3 are used by OS disks. Skip them
@@ -118,7 +118,7 @@ func findDiskByLunWithConstraint(lun int, io ioHandler, azureDisks []string) (st
 			l, err := strconv.Atoi(arr[3])
 			if err != nil {
 				// unknown path format, continue to read the next one
-				klog.V(4).Infof("azure disk - failed to parse lun from %v (%v), err %v", arr[3], name, err)
+				glog.V(4).Infof("azure disk - failed to parse lun from %v (%v), err %v", arr[3], name, err)
 				continue
 			}
 			if lun == l {
@@ -127,24 +127,24 @@ func findDiskByLunWithConstraint(lun int, io ioHandler, azureDisks []string) (st
 				vendorPath := filepath.Join(sys_path, name, "vendor")
 				vendorBytes, err := io.ReadFile(vendorPath)
 				if err != nil {
-					klog.Errorf("failed to read device vendor, err: %v", err)
+					glog.Errorf("failed to read device vendor, err: %v", err)
 					continue
 				}
 				vendor := libstrings.TrimSpace(string(vendorBytes))
 				if libstrings.ToUpper(vendor) != "MSFT" {
-					klog.V(4).Infof("vendor doesn't match VHD, got %s", vendor)
+					glog.V(4).Infof("vendor doesn't match VHD, got %s", vendor)
 					continue
 				}
 
 				modelPath := filepath.Join(sys_path, name, "model")
 				modelBytes, err := io.ReadFile(modelPath)
 				if err != nil {
-					klog.Errorf("failed to read device model, err: %v", err)
+					glog.Errorf("failed to read device model, err: %v", err)
 					continue
 				}
 				model := libstrings.TrimSpace(string(modelBytes))
 				if libstrings.ToUpper(model) != "VIRTUAL DISK" {
-					klog.V(4).Infof("model doesn't match VHD, got %s", model)
+					glog.V(4).Infof("model doesn't match VHD, got %s", model)
 					continue
 				}
 
@@ -154,7 +154,7 @@ func findDiskByLunWithConstraint(lun int, io ioHandler, azureDisks []string) (st
 					found := false
 					devName := dev[0].Name()
 					for _, diskName := range azureDisks {
-						klog.V(12).Infof("azureDisk - validating disk %q with sys disk %q", devName, diskName)
+						glog.V(12).Infof("azureDisk - validating disk %q with sys disk %q", devName, diskName)
 						if devName == diskName {
 							found = true
 							break
@@ -165,10 +165,10 @@ func findDiskByLunWithConstraint(lun int, io ioHandler, azureDisks []string) (st
 						for _, devLinkPath := range devLinkPaths {
 							diskPath, err := getDiskLinkByDevName(io, devLinkPath, devName)
 							if err == nil {
-								klog.V(4).Infof("azureDisk - found %s by %s under %s", diskPath, devName, devLinkPath)
+								glog.V(4).Infof("azureDisk - found %s by %s under %s", diskPath, devName, devLinkPath)
 								return diskPath, nil
 							}
-							klog.Warningf("azureDisk - getDiskLinkByDevName by %s under %s failed, error: %v", devName, devLinkPath, err)
+							glog.Warningf("azureDisk - getDiskLinkByDevName by %s under %s failed, error: %v", devName, devLinkPath, err)
 						}
 						return "/dev/" + devName, nil
 					}

@@ -17,13 +17,10 @@ limitations under the License.
 package upgrade
 
 import (
+	"fmt"
 	"testing"
 	"time"
-
-	"github.com/pkg/errors"
-
-	"k8s.io/kubernetes/cmd/kubeadm/app/constants"
-	//"k8s.io/apimachinery/pkg/util/version"
+	//"k8s.io/kubernetes/pkg/util/version"
 )
 
 // failedCreatePrepuller is a fake prepuller that errors for kube-controller-manager in the CreateFunc call
@@ -35,7 +32,7 @@ func NewFailedCreatePrepuller() Prepuller {
 
 func (p *failedCreatePrepuller) CreateFunc(component string) error {
 	if component == "kube-controller-manager" {
-		return errors.New("boo")
+		return fmt.Errorf("boo")
 	}
 	return nil
 }
@@ -80,7 +77,7 @@ func (p *failedDeletePrepuller) WaitFunc(component string) {}
 
 func (p *failedDeletePrepuller) DeleteFunc(component string) error {
 	if component == "kube-scheduler" {
-		return errors.New("boo")
+		return fmt.Errorf("boo")
 	}
 	return nil
 }
@@ -136,7 +133,7 @@ func TestPrepullImagesInParallel(t *testing.T) {
 
 	for _, rt := range tests {
 
-		actualErr := PrepullImagesInParallel(rt.p, rt.timeout, append(constants.MasterComponents, constants.Etcd))
+		actualErr := PrepullImagesInParallel(rt.p, rt.timeout)
 		if (actualErr != nil) != rt.expectedErr {
 			t.Errorf(
 				"failed TestPrepullImagesInParallel\n\texpected error: %t\n\tgot: %t",

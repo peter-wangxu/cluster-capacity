@@ -22,7 +22,7 @@ const (
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .DeploymentName }}
+  name: kube-dns
   namespace: kube-system
   labels:
     k8s-app: kube-dns
@@ -50,7 +50,7 @@ spec:
           optional: true
       containers:
       - name: kubedns
-        image: {{ .KubeDNSImage }}
+        image: {{ .ImageRepository }}/k8s-dns-kube-dns:{{ .Version }}
         imagePullPolicy: IfNotPresent
         resources:
           # TODO: Set memory limits when we've profiled the container for large
@@ -102,7 +102,7 @@ spec:
         - name: kube-dns-config
           mountPath: /kube-dns-config
       - name: dnsmasq
-        image: {{ .DNSMasqImage }}
+        image: {{ .ImageRepository }}/k8s-dns-dnsmasq-nanny:{{ .Version }}
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -143,7 +143,7 @@ spec:
         - name: kube-dns-config
           mountPath: /etc/k8s/dns/dnsmasq-nanny
       - name: sidecar
-        image: {{ .SidecarImage }}
+        image: {{ .ImageRepository }}/k8s-dns-sidecar:{{ .Version }}
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
@@ -213,7 +213,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .DeploymentName }}
+  name: coredns
   namespace: kube-system
   labels:
     k8s-app: kube-dns
@@ -239,7 +239,7 @@ spec:
         effect: NoSchedule
       containers:
       - name: coredns
-        image: {{ .Image }}
+        image: {{ .ImageRepository }}/coredns:{{ .Version }}
         imagePullPolicy: IfNotPresent
         resources:
           limits:
@@ -331,12 +331,6 @@ rules:
   verbs:
   - list
   - watch
-- apiGroups:
-  - ""
-  resources:
-  - nodes
-  verbs:
-  - get
 `
 	// CoreDNSClusterRoleBinding is the CoreDNS Clusterrolebinding manifest
 	CoreDNSClusterRoleBinding = `

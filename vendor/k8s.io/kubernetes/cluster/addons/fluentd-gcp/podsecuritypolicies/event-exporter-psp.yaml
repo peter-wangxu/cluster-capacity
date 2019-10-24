@@ -19,7 +19,6 @@ spec:
   volumes:
   - 'hostPath'
   - 'secret'
-  - 'projected'
   # TODO: This only needs a hostPath to read /etc/ssl/certs,
   #   but it should be able to just include these in the image.
   allowedHostPaths:

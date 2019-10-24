@@ -52,9 +52,8 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 
 		ch := make(chan struct{})
 		go func() {
-			pod := newUninitializedPod(podName)
-			_, err := c.CoreV1().Pods(ns).Create(pod)
-			Expect(err).NotTo(HaveOccurred(), "failed to create pod %s in namespace: %s", podName, ns)
+			_, err := c.CoreV1().Pods(ns).Create(newUninitializedPod(podName))
+			Expect(err).NotTo(HaveOccurred())
 			close(ch)
 		}()
 
@@ -73,35 +72,34 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 
 		// verify that we can update an initializing pod
 		pod, err := c.CoreV1().Pods(ns).Get(podName, metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred(), "failed to get pod %s in namespace: %s", podName, ns)
+		Expect(err).NotTo(HaveOccurred())
 		pod.Annotations = map[string]string{"update-1": "test"}
 		pod, err = c.CoreV1().Pods(ns).Update(pod)
-		Expect(err).NotTo(HaveOccurred(), "failed to update pod %s in namespace %s to: %+v", pod.Name, ns, pod)
+		Expect(err).NotTo(HaveOccurred())
 
 		// verify the list call filters out uninitialized pods
-		listOptions := metav1.ListOptions{IncludeUninitialized: true}
-		pods, err := c.CoreV1().Pods(ns).List(listOptions)
-		Expect(err).NotTo(HaveOccurred(), "failed to list pods in namespace: %s, given list options: %+v", ns, listOptions)
+		pods, err := c.CoreV1().Pods(ns).List(metav1.ListOptions{IncludeUninitialized: true})
+		Expect(err).NotTo(HaveOccurred())
 		Expect(pods.Items).To(HaveLen(1))
 		pods, err = c.CoreV1().Pods(ns).List(metav1.ListOptions{})
-		Expect(err).NotTo(HaveOccurred(), "failed to list pods in namespace: %s", ns)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(pods.Items).To(HaveLen(0))
 
 		// clear initializers
 		pod.Initializers = nil
 		pod, err = c.CoreV1().Pods(ns).Update(pod)
-		Expect(err).NotTo(HaveOccurred(), "failed to update pod %s in namespace %s to: %+v", pod.Name, ns, pod)
+		Expect(err).NotTo(HaveOccurred())
 
 		// pod should now start running
 		err = framework.WaitForPodRunningInNamespace(c, pod)
-		Expect(err).NotTo(HaveOccurred(), "error while waiting for pod %s to go to Running phase in namespace: %s", pod.Name, pod.Namespace)
+		Expect(err).NotTo(HaveOccurred())
 
 		// ensure create call returns
 		<-ch
 
 		// verify that we cannot start the pod initializing again
 		pod, err = c.CoreV1().Pods(ns).Get(podName, metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred(), "failed to get pod %s in namespace: %s", podName, ns)
+		Expect(err).NotTo(HaveOccurred())
 		pod.Initializers = &metav1.Initializers{
 			Pending: []metav1.Initializer{{Name: "Other"}},
 		}
@@ -121,7 +119,7 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 		// create and register an initializer
 		initializerName := "pod.test.e2e.kubernetes.io"
 		initializerConfigName := "e2e-test-initializer"
-		initializerConfig := &v1alpha1.InitializerConfiguration{
+		_, err := c.AdmissionregistrationV1alpha1().InitializerConfigurations().Create(&v1alpha1.InitializerConfiguration{
 			ObjectMeta: metav1.ObjectMeta{Name: initializerConfigName},
 			Initializers: []v1alpha1.Initializer{
 				{
@@ -131,12 +129,11 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 					},
 				},
 			},
-		}
-		_, err := c.AdmissionregistrationV1alpha1().InitializerConfigurations().Create(initializerConfig)
+		})
 		if errors.IsNotFound(err) {
 			framework.Skipf("dynamic configuration of initializers requires the alpha admissionregistration.k8s.io group to be enabled")
 		}
-		Expect(err).NotTo(HaveOccurred(), "failed to create and register initializer with config: %+v", initializerConfig)
+		Expect(err).NotTo(HaveOccurred())
 
 		// we must remove the initializer when the test is complete and ensure no pods are pending for that initializer
 		defer cleanupInitializer(c, initializerConfigName, initializerName)
@@ -148,9 +145,8 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 		ch := make(chan struct{})
 		go func() {
 			defer close(ch)
-			pod := newInitPod(podName)
-			_, err := c.CoreV1().Pods(ns).Create(pod)
-			Expect(err).NotTo(HaveOccurred(), "failed to create pod %s in namespace: %s", podName, ns)
+			_, err := c.CoreV1().Pods(ns).Create(newInitPod(podName))
+			Expect(err).NotTo(HaveOccurred())
 		}()
 
 		// wait until the pod shows up uninitialized
@@ -166,7 +162,7 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 			}
 			return true, nil
 		})
-		Expect(err).NotTo(HaveOccurred(), "failed to get pod %s from namespace: %s", podName, ns)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(pod.Initializers).NotTo(BeNil())
 		Expect(pod.Initializers.Pending).To(HaveLen(1))
 		Expect(pod.Initializers.Pending[0].Name).To(Equal(initializerName))
@@ -175,14 +171,14 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 		By("Completing initialization")
 		pod.Initializers = nil
 		pod, err = c.CoreV1().Pods(ns).Update(pod)
-		Expect(err).NotTo(HaveOccurred(), "failed to update pod %s in namespace %s to: %+v", pod.Name, ns, pod)
+		Expect(err).NotTo(HaveOccurred())
 
 		// ensure create call returns
 		<-ch
 
 		// pod should now start running
 		err = framework.WaitForPodRunningInNamespace(c, pod)
-		Expect(err).NotTo(HaveOccurred(), "error while waiting for pod %s to go to Running phase in namespace: %s", pod.Name, pod.Namespace)
+		Expect(err).NotTo(HaveOccurred())
 
 		// bypass initialization by explicitly passing an empty pending list
 		By("Setting an empty initializer as an admin to bypass initialization")
@@ -190,7 +186,7 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 		pod = newUninitializedPod(podName)
 		pod.Initializers.Pending = nil
 		pod, err = c.CoreV1().Pods(ns).Create(pod)
-		Expect(err).NotTo(HaveOccurred(), "failed to create pod %s in namespace: %s", podName, ns)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(pod.Initializers).To(BeNil())
 
 		// bypass initialization for mirror pods
@@ -202,7 +198,7 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 		}
 		pod.Spec.NodeName = "node-does-not-yet-exist"
 		pod, err = c.CoreV1().Pods(ns).Create(pod)
-		Expect(err).NotTo(HaveOccurred(), "failed to create pod %s in namespace: %s", podName, ns)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(pod.Initializers).To(BeNil())
 		Expect(pod.Annotations[v1.MirrorPodAnnotationKey]).To(Equal("true"))
 	})
@@ -217,7 +213,7 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 		// create and register an initializer, without setting up a controller to handle it.
 		initializerName := "pod.test.e2e.kubernetes.io"
 		initializerConfigName := "e2e-test-initializer"
-		initializerConfig := &v1alpha1.InitializerConfiguration{
+		_, err := c.AdmissionregistrationV1alpha1().InitializerConfigurations().Create(&v1alpha1.InitializerConfiguration{
 			ObjectMeta: metav1.ObjectMeta{Name: initializerConfigName},
 			Initializers: []v1alpha1.Initializer{
 				{
@@ -227,12 +223,11 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 					},
 				},
 			},
-		}
-		_, err := c.AdmissionregistrationV1alpha1().InitializerConfigurations().Create(initializerConfig)
+		})
 		if errors.IsNotFound(err) {
 			framework.Skipf("dynamic configuration of initializers requires the alpha admissionregistration.k8s.io group to be enabled")
 		}
-		Expect(err).NotTo(HaveOccurred(), "failed to create and register initializer with config: %+v", initializerConfig)
+		Expect(err).NotTo(HaveOccurred())
 
 		// we must remove the initializer when the test is complete and ensure no pods are pending for that initializer
 		defer cleanupInitializer(c, initializerConfigName, initializerName)
@@ -241,32 +236,31 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 		time.Sleep(3 * time.Second)
 
 		// create a replicaset
-		rs := newReplicaset()
-		persistedRS, err := c.ExtensionsV1beta1().ReplicaSets(ns).Create(rs)
-		Expect(err).NotTo(HaveOccurred(), "failed to create replicaset %s in namespace: %s", persistedRS.Name, ns)
+		persistedRS, err := c.ExtensionsV1beta1().ReplicaSets(ns).Create(newReplicaset())
+		Expect(err).NotTo(HaveOccurred())
 		// wait for replicaset controller to confirm that it has handled the creation
 		err = waitForRSObservedGeneration(c, persistedRS.Namespace, persistedRS.Name, persistedRS.Generation)
-		Expect(err).NotTo(HaveOccurred(), "replicaset %s failed to observe generation: %d", persistedRS.Name, persistedRS.Generation)
+		Expect(err).NotTo(HaveOccurred())
 
 		// update the replicaset spec to trigger a resync
 		patch := []byte(`{"spec":{"minReadySeconds":5}}`)
 		persistedRS, err = c.ExtensionsV1beta1().ReplicaSets(ns).Patch(persistedRS.Name, types.StrategicMergePatchType, patch)
-		Expect(err).NotTo(HaveOccurred(), "failed to apply to replicaset %s in namespace %s a strategic merge patch: %s", persistedRS.Name, ns, patch)
+		Expect(err).NotTo(HaveOccurred())
 
 		// wait for replicaset controller to confirm that it has handle the spec update
 		err = waitForRSObservedGeneration(c, persistedRS.Namespace, persistedRS.Name, persistedRS.Generation)
-		Expect(err).NotTo(HaveOccurred(), "replicaset %s failed to observe generation: %d", persistedRS.Name, persistedRS.Generation)
+		Expect(err).NotTo(HaveOccurred())
 
 		// verify that the replicaset controller doesn't create extra pod
 		selector, err := metav1.LabelSelectorAsSelector(persistedRS.Spec.Selector)
-		Expect(err).NotTo(HaveOccurred(), "failed to convert label selector %+v of LabelSelector api type into a struct that implements labels.Selector", persistedRS.Spec.Selector)
+		Expect(err).NotTo(HaveOccurred())
 
 		listOptions := metav1.ListOptions{
 			LabelSelector:        selector.String(),
 			IncludeUninitialized: true,
 		}
 		pods, err := c.CoreV1().Pods(ns).List(listOptions)
-		Expect(err).NotTo(HaveOccurred(), "failed to list pods in namespace: %s, given list options: %+v", ns, listOptions)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(len(pods.Items)).Should(Equal(1))
 	})
 
@@ -283,13 +277,13 @@ var _ = SIGDescribe("Initializers [Feature:Initializers]", func() {
 			framework.Failf("expect err to be timeout error, got %v", err)
 		}
 		uninitializedPod, err := c.CoreV1().Pods(ns).Get(podName, metav1.GetOptions{})
-		Expect(err).NotTo(HaveOccurred(), "failed to get pod %s in namespace: %s", podName, ns)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(uninitializedPod.Initializers).NotTo(BeNil())
 		Expect(len(uninitializedPod.Initializers.Pending)).Should(Equal(1))
 
 		patch := fmt.Sprintf(`{"metadata":{"initializers":{"pending":[{"$patch":"delete","name":"%s"}]}}}`, uninitializedPod.Initializers.Pending[0].Name)
 		patchedPod, err := c.CoreV1().Pods(ns).Patch(uninitializedPod.Name, types.StrategicMergePatchType, []byte(patch))
-		Expect(err).NotTo(HaveOccurred(), "failed to apply to pod %s in namespace %s a strategic merge patch: %s", uninitializedPod.Name, ns, patch)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(patchedPod.Initializers).To(BeNil())
 	})
 })

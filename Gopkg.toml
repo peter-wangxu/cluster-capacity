@@ -1,39 +1,49 @@
 [[constraint]]
   name = "k8s.io/api"
-  version = "kubernetes-1.13.5"
+  version = "kubernetes-1.12.3"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.13.5"
+  version = "kubernetes-1.12.3"
 
 [[constraint]]
   name = "k8s.io/apiserver"
-  version = "kubernetes-1.13.5"
+  version = "kubernetes-1.12.3"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
-  version = "kubernetes-1.13.5"
+  version = "kubernetes-1.12.3"
 
 [[override]]
   name = "k8s.io/kube-scheduler"
-  version = "kubernetes-1.13.5"
+  version = "kubernetes-1.12.3"
 
 [[override]]
   version = "v0.9.0"
   name = "github.com/prometheus/client_golang"
 
+[[override]]
+  version = "kubernetes-1.12.3"
+  name = "k8s.io/apimachinery"
 
 [[override]]
-  revision = "c59034cc13d587f5ef4e85ca0ade0c1866ae8e1d"
+  revision = "0cf8f7e6ed1d2e3d47d02e3b6e559369af24d803"
   name = "k8s.io/kube-openapi"
-
+[[override]]
+  name = "github.com/emicklei/go-restful-swagger12"
+  revision = "dcef7f55730566d41eae5db10e7d6981829720f6"
+[[override]]
+  name = "bitbucket.org/ww/goautoneg"
+  revision = "75cd24fc2f2c2a2088577d12123ddee5f54e0675"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.13.5"
+  version = "kubernetes-1.12.3"
 
 [[constraint]]
   name = "k8s.io/kubernetes"
-  source = "git@github.com:ringtail/kubernetes.git"
-  branch = "release-1.13-cache"
+  branch = "release-1.12"
 
+[[override]]
+  name = "github.com/Shopify/logrus-bugsnag"
+  source = "github.com/peter-wangxu/logrus-bugsnag"

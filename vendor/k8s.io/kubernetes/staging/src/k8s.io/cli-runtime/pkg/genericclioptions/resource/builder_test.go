@@ -30,7 +30,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"sigs.k8s.io/yaml"
+	"github.com/ghodss/yaml"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"

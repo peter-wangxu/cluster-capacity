@@ -1,4 +1,7 @@
-apiVersion: kubeadm.k8s.io/v1beta1
+apiEndpoint:
+  advertiseAddress: 192.168.2.2
+  bindPort: 6443
+apiVersion: kubeadm.k8s.io/v1alpha3
 bootstrapTokens:
 - groups:
   - system:bootstrappers:kubeadm:default-node-token
@@ -8,9 +11,6 @@ bootstrapTokens:
   - signing
   - authentication
 kind: InitConfiguration
-localAPIEndpoint:
-  advertiseAddress: 192.168.2.2
-  bindPort: 6443
 nodeRegistration:
   criSocket: /var/run/criruntime.sock
   name: master-1
@@ -18,26 +18,26 @@ nodeRegistration:
   - effect: NoSchedule
     key: node-role.kubernetes.io/master
 ---
-apiServer:
-  timeoutForControlPlane: 4m0s
-apiVersion: kubeadm.k8s.io/v1beta1
+apiVersion: kubeadm.k8s.io/v1alpha3
+auditPolicy:
+  logDir: /var/log/kubernetes/audit
+  logMaxAge: 2
+  path: ""
 certificatesDir: /var/lib/kubernetes/pki
 clusterName: kubernetes
 controlPlaneEndpoint: ""
-controllerManager: {}
-dns:
-  type: CoreDNS
 etcd:
   local:
     dataDir: /var/lib/etcd
+    image: ""
 imageRepository: my-company.com
 kind: ClusterConfiguration
-kubernetesVersion: v1.13.0
+kubernetesVersion: v1.11.2
 networking:
   dnsDomain: cluster.global
   podSubnet: 10.148.0.0/16
   serviceSubnet: 10.196.0.0/12
-scheduler: {}
+unifiedControlPlaneImage: ""
 ---
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 bindAddress: 0.0.0.0
@@ -67,7 +67,6 @@ ipvs:
   excludeCIDRs: null
   minSyncPeriod: 0s
   scheduler: ""
-  strictARP: false
   syncPeriod: 30s
 kind: KubeProxyConfiguration
 metricsBindAddress: 127.0.0.1:10249
@@ -136,7 +135,6 @@ makeIPTablesUtilChains: true
 maxOpenFiles: 1000000
 maxPods: 110
 nodeLeaseDurationSeconds: 40
-nodeStatusReportFrequency: 1m0s
 nodeStatusUpdateFrequency: 10s
 oomScoreAdj: -999
 podPidsLimit: -1

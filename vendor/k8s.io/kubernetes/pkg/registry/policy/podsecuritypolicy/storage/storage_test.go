@@ -55,9 +55,6 @@ func validNewPodSecurityPolicy() *policy.PodSecurityPolicy {
 			RunAsUser: policy.RunAsUserStrategyOptions{
 				Rule: policy.RunAsUserStrategyRunAsAny,
 			},
-			RunAsGroup: &policy.RunAsGroupStrategyOptions{
-				Rule: policy.RunAsGroupStrategyRunAsAny,
-			},
 			FSGroup: policy.FSGroupStrategyOptions{
 				Rule: policy.FSGroupStrategyRunAsAny,
 			},

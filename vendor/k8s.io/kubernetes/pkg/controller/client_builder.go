@@ -38,12 +38,10 @@ import (
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/serviceaccount"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // ControllerClientBuilder allows you to get clients and configs for controllers
-// Please note a copy also exists in staging/src/k8s.io/cloud-provider/cloud.go
-// TODO: Extract this into a separate controller utilities repo (issues/68947)
 type ControllerClientBuilder interface {
 	Config(name string) (*restclient.Config, error)
 	ConfigOrDie(name string) *restclient.Config
@@ -65,7 +63,7 @@ func (b SimpleControllerClientBuilder) Config(name string) (*restclient.Config, 
 func (b SimpleControllerClientBuilder) ConfigOrDie(name string) *restclient.Config {
 	clientConfig, err := b.Config(name)
 	if err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 	return clientConfig
 }
@@ -81,7 +79,7 @@ func (b SimpleControllerClientBuilder) Client(name string) (clientset.Interface,
 func (b SimpleControllerClientBuilder) ClientOrDie(name string) clientset.Interface {
 	client, err := b.Client(name)
 	if err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 	return client
 }
@@ -146,15 +144,15 @@ func (b SAControllerClientBuilder) Config(name string) (*restclient.Config, erro
 				}
 				validConfig, valid, err := b.getAuthenticatedConfig(sa, string(secret.Data[v1.ServiceAccountTokenKey]))
 				if err != nil {
-					klog.Warningf("error validating API token for %s/%s in secret %s: %v", sa.Name, sa.Namespace, secret.Name, err)
+					glog.Warningf("error validating API token for %s/%s in secret %s: %v", sa.Name, sa.Namespace, secret.Name, err)
 					// continue watching for good tokens
 					return false, nil
 				}
 				if !valid {
-					klog.Warningf("secret %s contained an invalid API token for %s/%s", secret.Name, sa.Name, sa.Namespace)
+					glog.Warningf("secret %s contained an invalid API token for %s/%s", secret.Name, sa.Name, sa.Namespace)
 					// try to delete the secret containing the invalid token
 					if err := b.CoreClient.Secrets(secret.Namespace).Delete(secret.Name, &metav1.DeleteOptions{}); err != nil && !apierrors.IsNotFound(err) {
-						klog.Warningf("error deleting secret %s containing invalid API token for %s/%s: %v", secret.Name, sa.Name, sa.Namespace, err)
+						glog.Warningf("error deleting secret %s containing invalid API token for %s/%s: %v", secret.Name, sa.Name, sa.Namespace, err)
 					}
 					// continue watching for good tokens
 					return false, nil
@@ -208,14 +206,14 @@ func (b SAControllerClientBuilder) getAuthenticatedConfig(sa *v1.ServiceAccount,
 	tokenReview := &v1authenticationapi.TokenReview{Spec: v1authenticationapi.TokenReviewSpec{Token: token}}
 	if tokenResult, err := b.AuthenticationClient.TokenReviews().Create(tokenReview); err == nil {
 		if !tokenResult.Status.Authenticated {
-			klog.Warningf("Token for %s/%s did not authenticate correctly", sa.Name, sa.Namespace)
+			glog.Warningf("Token for %s/%s did not authenticate correctly", sa.Name, sa.Namespace)
 			return nil, false, nil
 		}
 		if tokenResult.Status.User.Username != username {
-			klog.Warningf("Token for %s/%s authenticated as unexpected username: %s", sa.Name, sa.Namespace, tokenResult.Status.User.Username)
+			glog.Warningf("Token for %s/%s authenticated as unexpected username: %s", sa.Name, sa.Namespace, tokenResult.Status.User.Username)
 			return nil, false, nil
 		}
-		klog.V(4).Infof("Verified credential for %s/%s", sa.Name, sa.Namespace)
+		glog.V(4).Infof("Verified credential for %s/%s", sa.Name, sa.Namespace)
 		return clientConfig, true, nil
 	}
 
@@ -229,7 +227,7 @@ func (b SAControllerClientBuilder) getAuthenticatedConfig(sa *v1.ServiceAccount,
 	}
 	err = client.Get().AbsPath("/apis").Do().Error()
 	if apierrors.IsUnauthorized(err) {
-		klog.Warningf("Token for %s/%s did not authenticate correctly: %v", sa.Name, sa.Namespace, err)
+		glog.Warningf("Token for %s/%s did not authenticate correctly: %v", sa.Name, sa.Namespace, err)
 		return nil, false, nil
 	}
 
@@ -239,7 +237,7 @@ func (b SAControllerClientBuilder) getAuthenticatedConfig(sa *v1.ServiceAccount,
 func (b SAControllerClientBuilder) ConfigOrDie(name string) *restclient.Config {
 	clientConfig, err := b.Config(name)
 	if err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 	return clientConfig
 }
@@ -255,7 +253,7 @@ func (b SAControllerClientBuilder) Client(name string) (clientset.Interface, err
 func (b SAControllerClientBuilder) ClientOrDie(name string) clientset.Interface {
 	client, err := b.Client(name)
 	if err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 	return client
 }

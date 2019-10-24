@@ -25,14 +25,14 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-03-01/compute"
-	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2018-07-01/network"
+	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2017-09-01/network"
 	"github.com/Azure/go-autorest/autorest/to"
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
-	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
 var (
@@ -113,7 +113,7 @@ func (ss *scaleSet) getVmssVM(nodeName string) (ssName, instanceID string, vm co
 		return "", "", vm, err
 	}
 
-	klog.V(4).Infof("getVmssVM gets scaleSetName (%q) and instanceID (%q) for node %q", ssName, instanceID, nodeName)
+	glog.V(4).Infof("getVmssVM gets scaleSetName (%q) and instanceID (%q) for node %q", ssName, instanceID, nodeName)
 	key := buildVmssCacheKey(resourceGroup, ss.makeVmssVMName(ssName, instanceID))
 	cachedVM, err := ss.vmssVMCache.Get(key)
 	if err != nil {
@@ -121,7 +121,7 @@ func (ss *scaleSet) getVmssVM(nodeName string) (ssName, instanceID string, vm co
 	}
 
 	if cachedVM == nil {
-		klog.Errorf("Can't find node (%q) in any scale sets", nodeName)
+		glog.Errorf("Can't find node (%q) in any scale sets", nodeName)
 		return ssName, instanceID, vm, cloudprovider.InstanceNotFound
 	}
 
@@ -159,7 +159,7 @@ func (ss *scaleSet) getVmssVMByInstanceID(resourceGroup, scaleSetName, instanceI
 	}
 
 	if cachedVM == nil {
-		klog.Errorf("couldn't find vmss virtual machine by scaleSetName (%s) and instanceID (%s)", scaleSetName, instanceID)
+		glog.Errorf("cound't find vmss virtual machine by scaleSetName (%q) and instanceID (%q)", scaleSetName, instanceID)
 		return vm, cloudprovider.InstanceNotFound
 	}
 
@@ -172,7 +172,7 @@ func (ss *scaleSet) getVmssVMByInstanceID(resourceGroup, scaleSetName, instanceI
 func (ss *scaleSet) GetInstanceIDByNodeName(name string) (string, error) {
 	managedByAS, err := ss.isNodeManagedByAvailabilitySet(name)
 	if err != nil {
-		klog.Errorf("Failed to check isNodeManagedByAvailabilitySet: %v", err)
+		glog.Errorf("Failed to check isNodeManagedByAvailabilitySet: %v", err)
 		return "", err
 	}
 	if managedByAS {
@@ -193,7 +193,7 @@ func (ss *scaleSet) GetNodeNameByProviderID(providerID string) (types.NodeName, 
 	// NodeName is not part of providerID for vmss instances.
 	scaleSetName, err := extractScaleSetNameByProviderID(providerID)
 	if err != nil {
-		klog.V(4).Infof("Can not extract scale set name from providerID (%s), assuming it is mananaged by availability set: %v", providerID, err)
+		glog.V(4).Infof("Can not extract scale set name from providerID (%s), assuming it is mananaged by availability set: %v", providerID, err)
 		return ss.availabilitySet.GetNodeNameByProviderID(providerID)
 	}
 
@@ -204,7 +204,7 @@ func (ss *scaleSet) GetNodeNameByProviderID(providerID string) (types.NodeName, 
 
 	instanceID, err := getLastSegment(providerID)
 	if err != nil {
-		klog.V(4).Infof("Can not extract instanceID from providerID (%s), assuming it is mananaged by availability set: %v", providerID, err)
+		glog.V(4).Infof("Can not extract instanceID from providerID (%s), assuming it is mananaged by availability set: %v", providerID, err)
 		return ss.availabilitySet.GetNodeNameByProviderID(providerID)
 	}
 
@@ -225,7 +225,7 @@ func (ss *scaleSet) GetNodeNameByProviderID(providerID string) (types.NodeName, 
 func (ss *scaleSet) GetInstanceTypeByNodeName(name string) (string, error) {
 	managedByAS, err := ss.isNodeManagedByAvailabilitySet(name)
 	if err != nil {
-		klog.Errorf("Failed to check isNodeManagedByAvailabilitySet: %v", err)
+		glog.Errorf("Failed to check isNodeManagedByAvailabilitySet: %v", err)
 		return "", err
 	}
 	if managedByAS {
@@ -250,7 +250,7 @@ func (ss *scaleSet) GetInstanceTypeByNodeName(name string) (string, error) {
 func (ss *scaleSet) GetZoneByNodeName(name string) (cloudprovider.Zone, error) {
 	managedByAS, err := ss.isNodeManagedByAvailabilitySet(name)
 	if err != nil {
-		klog.Errorf("Failed to check isNodeManagedByAvailabilitySet: %v", err)
+		glog.Errorf("Failed to check isNodeManagedByAvailabilitySet: %v", err)
 		return cloudprovider.Zone{}, err
 	}
 	if managedByAS {
@@ -294,13 +294,13 @@ func (ss *scaleSet) GetPrimaryVMSetName() string {
 func (ss *scaleSet) GetIPByNodeName(nodeName string) (string, string, error) {
 	nic, err := ss.GetPrimaryInterface(nodeName)
 	if err != nil {
-		klog.Errorf("error: ss.GetIPByNodeName(%s), GetPrimaryInterface(%q), err=%v", nodeName, nodeName, err)
+		glog.Errorf("error: ss.GetIPByNodeName(%s), GetPrimaryInterface(%q), err=%v", nodeName, nodeName, err)
 		return "", "", err
 	}
 
 	ipConfig, err := getPrimaryIPConfig(nic)
 	if err != nil {
-		klog.Errorf("error: ss.GetIPByNodeName(%s), getPrimaryIPConfig(%v), err=%v", nodeName, nic, err)
+		glog.Errorf("error: ss.GetIPByNodeName(%s), getPrimaryIPConfig(%v), err=%v", nodeName, nic, err)
 		return "", "", err
 	}
 
@@ -400,7 +400,7 @@ func (ss *scaleSet) listScaleSets(resourceGroup string) ([]string, error) {
 
 	allScaleSets, err := ss.VirtualMachineScaleSetsClient.List(ctx, resourceGroup)
 	if err != nil {
-		klog.Errorf("VirtualMachineScaleSetsClient.List failed: %v", err)
+		glog.Errorf("VirtualMachineScaleSetsClient.List failed: %v", err)
 		return nil, err
 	}
 
@@ -420,7 +420,7 @@ func (ss *scaleSet) listScaleSetVMs(scaleSetName, resourceGroup string) ([]compu
 
 	allVMs, err := ss.VirtualMachineScaleSetVMsClient.List(ctx, resourceGroup, scaleSetName, "", "", string(compute.InstanceView))
 	if err != nil {
-		klog.Errorf("VirtualMachineScaleSetVMsClient.List failed: %v", err)
+		glog.Errorf("VirtualMachineScaleSetVMsClient.List failed: %v", err)
 		return nil, err
 	}
 
@@ -447,7 +447,7 @@ func (ss *scaleSet) getAgentPoolScaleSets(nodes []*v1.Node) (*[]string, error) {
 		}
 
 		if ssName == "" {
-			klog.V(3).Infof("Node %q is not belonging to any known scale sets", nodeName)
+			glog.V(3).Infof("Node %q is not belonging to any known scale sets", nodeName)
 			continue
 		}
 
@@ -471,11 +471,11 @@ func (ss *scaleSet) GetVMSetNames(service *v1.Service, nodes []*v1.Node) (vmSetN
 
 	scaleSetNames, err := ss.getAgentPoolScaleSets(nodes)
 	if err != nil {
-		klog.Errorf("ss.GetVMSetNames - getAgentPoolScaleSets failed err=(%v)", err)
+		glog.Errorf("ss.GetVMSetNames - getAgentPoolScaleSets failed err=(%v)", err)
 		return nil, err
 	}
 	if len(*scaleSetNames) == 0 {
-		klog.Errorf("ss.GetVMSetNames - No scale sets found for nodes in the cluster, node count(%d)", len(nodes))
+		glog.Errorf("ss.GetVMSetNames - No scale sets found for nodes in the cluster, node count(%d)", len(nodes))
 		return nil, fmt.Errorf("No scale sets found for nodes, node count(%d)", len(nodes))
 	}
 
@@ -497,7 +497,7 @@ func (ss *scaleSet) GetVMSetNames(service *v1.Service, nodes []*v1.Node) (vmSetN
 				}
 			}
 			if !found {
-				klog.Errorf("ss.GetVMSetNames - scale set (%s) in service annotation not found", serviceVMSetNames[sasx])
+				glog.Errorf("ss.GetVMSetNames - scale set (%s) in service annotation not found", serviceVMSetNames[sasx])
 				return nil, fmt.Errorf("scale set (%s) - not found", serviceVMSetNames[sasx])
 			}
 		}
@@ -521,7 +521,7 @@ func extractResourceGroupByVMSSNicID(nicID string) (string, error) {
 func (ss *scaleSet) GetPrimaryInterface(nodeName string) (network.Interface, error) {
 	managedByAS, err := ss.isNodeManagedByAvailabilitySet(nodeName)
 	if err != nil {
-		klog.Errorf("Failed to check isNodeManagedByAvailabilitySet: %v", err)
+		glog.Errorf("Failed to check isNodeManagedByAvailabilitySet: %v", err)
 		return network.Interface{}, err
 	}
 	if managedByAS {
@@ -536,19 +536,19 @@ func (ss *scaleSet) GetPrimaryInterface(nodeName string) (network.Interface, err
 			return ss.availabilitySet.GetPrimaryInterface(nodeName)
 		}
 
-		klog.Errorf("error: ss.GetPrimaryInterface(%s), ss.getVmssVM(%s), err=%v", nodeName, nodeName, err)
+		glog.Errorf("error: ss.GetPrimaryInterface(%s), ss.getVmssVM(%s), err=%v", nodeName, nodeName, err)
 		return network.Interface{}, err
 	}
 
 	primaryInterfaceID, err := ss.getPrimaryInterfaceID(vm)
 	if err != nil {
-		klog.Errorf("error: ss.GetPrimaryInterface(%s), ss.getPrimaryInterfaceID(), err=%v", nodeName, err)
+		glog.Errorf("error: ss.GetPrimaryInterface(%s), ss.getPrimaryInterfaceID(), err=%v", nodeName, err)
 		return network.Interface{}, err
 	}
 
 	nicName, err := getLastSegment(primaryInterfaceID)
 	if err != nil {
-		klog.Errorf("error: ss.GetPrimaryInterface(%s), getLastSegment(%s), err=%v", nodeName, primaryInterfaceID, err)
+		glog.Errorf("error: ss.GetPrimaryInterface(%s), getLastSegment(%s), err=%v", nodeName, primaryInterfaceID, err)
 		return network.Interface{}, err
 	}
 	resourceGroup, err := extractResourceGroupByVMSSNicID(primaryInterfaceID)
@@ -560,7 +560,7 @@ func (ss *scaleSet) GetPrimaryInterface(nodeName string) (network.Interface, err
 	defer cancel()
 	nic, err := ss.InterfacesClient.GetVirtualMachineScaleSetNetworkInterface(ctx, resourceGroup, ssName, instanceID, nicName, "")
 	if err != nil {
-		klog.Errorf("error: ss.GetPrimaryInterface(%s), ss.GetVirtualMachineScaleSetNetworkInterface.Get(%s, %s, %s), err=%v", nodeName, resourceGroup, ssName, nicName, err)
+		glog.Errorf("error: ss.GetPrimaryInterface(%s), ss.GetVirtualMachineScaleSetNetworkInterface.Get(%s, %s, %s), err=%v", nodeName, resourceGroup, ssName, nicName, err)
 		return network.Interface{}, err
 	}
 
@@ -608,7 +608,7 @@ func (ss *scaleSet) getPrimaryIPConfigForScaleSet(config *compute.VirtualMachine
 // EnsureHostInPool ensures the given VM's Primary NIC's Primary IP Configuration is
 // participating in the specified LoadBalancer Backend Pool.
 func (ss *scaleSet) EnsureHostInPool(service *v1.Service, nodeName types.NodeName, backendPoolID string, vmSetName string, isInternal bool) error {
-	klog.V(3).Infof("ensuring node %q of scaleset %q in LB backendpool %q", nodeName, vmSetName, backendPoolID)
+	glog.V(3).Infof("ensuring node %q of scaleset %q in LB backendpool %q", nodeName, vmSetName, backendPoolID)
 	vmName := mapNodeNameToVMName(nodeName)
 	ssName, instanceID, vm, err := ss.getVmssVM(vmName)
 	if err != nil {
@@ -621,7 +621,7 @@ func (ss *scaleSet) EnsureHostInPool(service *v1.Service, nodeName types.NodeNam
 	// - For standard SKU load balancer, backend could belong to multiple VMSS, so we
 	//   don't check vmSet for it.
 	if vmSetName != "" && !ss.useStandardLoadBalancer() && !strings.EqualFold(vmSetName, ssName) {
-		klog.V(3).Infof("EnsureHostInPool skips node %s because it is not in the scaleSet %s", vmName, vmSetName)
+		glog.V(3).Infof("EnsureHostInPool skips node %s because it is not in the scaleSet %s", vmName, vmSetName)
 		return nil
 	}
 
@@ -672,7 +672,7 @@ func (ss *scaleSet) EnsureHostInPool(service *v1.Service, nodeName types.NodeNam
 			return err
 		}
 		if !isSameLB {
-			klog.V(4).Infof("Node %q has already been added to LB %q, omit adding it to a new one", nodeName, oldLBName)
+			glog.V(4).Infof("Node %q has already been added to LB %q, omit adding it to a new one", nodeName, oldLBName)
 			return nil
 		}
 	}
@@ -707,14 +707,14 @@ func (ss *scaleSet) EnsureHostInPool(service *v1.Service, nodeName types.NodeNam
 	// Update vmssVM with backoff.
 	ctx, cancel := getContextWithCancel()
 	defer cancel()
-	klog.V(2).Infof("EnsureHostInPool begins to update vmssVM(%s) with new backendPoolID %s", vmName, backendPoolID)
+	glog.V(2).Infof("EnsureHostInPool begins to update vmssVM(%s) with new backendPoolID %s", vmName, backendPoolID)
 	resp, err := ss.VirtualMachineScaleSetVMsClient.Update(ctx, nodeResourceGroup, ssName, instanceID, newVM)
 	if ss.CloudProviderBackoff && shouldRetryHTTPRequest(resp, err) {
-		klog.V(2).Infof("EnsureHostInPool update backing off vmssVM(%s) with new backendPoolID %s, err: %v", vmName, backendPoolID, err)
+		glog.V(2).Infof("EnsureHostInPool update backing off vmssVM(%s) with new backendPoolID %s, err: %v", vmName, backendPoolID, err)
 		retryErr := ss.UpdateVmssVMWithRetry(ctx, nodeResourceGroup, ssName, instanceID, newVM)
 		if retryErr != nil {
 			err = retryErr
-			klog.Errorf("EnsureHostInPool update abort backoff vmssVM(%s) with new backendPoolID %s, err: %v", vmName, backendPoolID, err)
+			glog.Errorf("EnsureHostInPool update abort backoff vmssVM(%s) with new backendPoolID %s, err: %v", vmName, backendPoolID, err)
 		}
 	}
 
@@ -729,12 +729,12 @@ func (ss *scaleSet) EnsureHostsInPool(service *v1.Service, nodes []*v1.Node, bac
 		localNodeName := node.Name
 
 		if ss.useStandardLoadBalancer() && ss.excludeMasterNodesFromStandardLB() && isMasterNode(node) {
-			klog.V(4).Infof("Excluding master node %q from load balancer backendpool %q", localNodeName, backendPoolID)
+			glog.V(4).Infof("Excluding master node %q from load balancer backendpool %q", localNodeName, backendPoolID)
 			continue
 		}
 
 		if ss.ShouldNodeExcludedFromLoadBalancer(node) {
-			klog.V(4).Infof("Excluding unmanaged/external-resource-group node %q", localNodeName)
+			glog.V(4).Infof("Excluding unmanaged/external-resource-group node %q", localNodeName)
 			continue
 		}
 
@@ -744,7 +744,7 @@ func (ss *scaleSet) EnsureHostsInPool(service *v1.Service, nodes []*v1.Node, bac
 				// Check whether the node is VMAS virtual machine.
 				managedByAS, err := ss.isNodeManagedByAvailabilitySet(localNodeName)
 				if err != nil {
-					klog.Errorf("Failed to check isNodeManagedByAvailabilitySet(%s): %v", localNodeName, err)
+					glog.Errorf("Failed to check isNodeManagedByAvailabilitySet(%s): %v", localNodeName, err)
 					return err
 				}
 				if managedByAS {
@@ -799,7 +799,7 @@ func (ss *scaleSet) ensureBackendPoolDeletedFromNode(service *v1.Service, nodeNa
 	for i := len(existingBackendPools) - 1; i >= 0; i-- {
 		curPool := existingBackendPools[i]
 		if strings.EqualFold(backendPoolID, *curPool.ID) {
-			klog.V(10).Infof("ensureBackendPoolDeletedFromNode gets unwanted backend pool %q for node %s", backendPoolID, nodeName)
+			glog.V(10).Infof("ensureBackendPoolDeletedFromNode gets unwanted backend pool %q for node %s", backendPoolID, nodeName)
 			foundPool = true
 			newBackendPools = append(existingBackendPools[:i], existingBackendPools[i+1:]...)
 		}
@@ -836,20 +836,20 @@ func (ss *scaleSet) ensureBackendPoolDeletedFromNode(service *v1.Service, nodeNa
 	// Update vmssVM with backoff.
 	ctx, cancel := getContextWithCancel()
 	defer cancel()
-	klog.V(2).Infof("ensureBackendPoolDeletedFromNode begins to update vmssVM(%s) with backendPoolID %s", nodeName, backendPoolID)
+	glog.V(2).Infof("ensureBackendPoolDeletedFromNode begins to update vmssVM(%s) with backendPoolID %s", nodeName, backendPoolID)
 	resp, err := ss.VirtualMachineScaleSetVMsClient.Update(ctx, nodeResourceGroup, ssName, instanceID, newVM)
 	if ss.CloudProviderBackoff && shouldRetryHTTPRequest(resp, err) {
-		klog.V(2).Infof("ensureBackendPoolDeletedFromNode update backing off vmssVM(%s) with backendPoolID %s, err: %v", nodeName, backendPoolID, err)
+		glog.V(2).Infof("ensureBackendPoolDeletedFromNode update backing off vmssVM(%s) with backendPoolID %s, err: %v", nodeName, backendPoolID, err)
 		retryErr := ss.UpdateVmssVMWithRetry(ctx, nodeResourceGroup, ssName, instanceID, newVM)
 		if retryErr != nil {
 			err = retryErr
-			klog.Errorf("ensureBackendPoolDeletedFromNode update abort backoff vmssVM(%s) with backendPoolID %s, err: %v", nodeName, backendPoolID, err)
+			glog.Errorf("ensureBackendPoolDeletedFromNode update abort backoff vmssVM(%s) with backendPoolID %s, err: %v", nodeName, backendPoolID, err)
 		}
 	}
 	if err != nil {
-		klog.Errorf("ensureBackendPoolDeletedFromNode failed to update vmssVM(%s) with backendPoolID %s: %v", nodeName, backendPoolID, err)
+		glog.Errorf("ensureBackendPoolDeletedFromNode failed to update vmssVM(%s) with backendPoolID %s: %v", nodeName, backendPoolID, err)
 	} else {
-		klog.V(2).Infof("ensureBackendPoolDeletedFromNode update vmssVM(%s) with backendPoolID %s succeeded", nodeName, backendPoolID)
+		glog.V(2).Infof("ensureBackendPoolDeletedFromNode update vmssVM(%s) with backendPoolID %s succeeded", nodeName, backendPoolID)
 	}
 	return err
 }
@@ -858,7 +858,7 @@ func (ss *scaleSet) ensureBackendPoolDeletedFromNode(service *v1.Service, nodeNa
 func (ss *scaleSet) getNodeNameByIPConfigurationID(ipConfigurationID string) (string, error) {
 	matches := vmssIPConfigurationRE.FindStringSubmatch(ipConfigurationID)
 	if len(matches) != 4 {
-		klog.V(4).Infof("Can not extract scale set name from ipConfigurationID (%s), assuming it is mananaged by availability set", ipConfigurationID)
+		glog.V(4).Infof("Can not extract scale set name from ipConfigurationID (%s), assuming it is mananaged by availability set", ipConfigurationID)
 		return "", ErrorNotVmssInstance
 	}
 
@@ -914,7 +914,7 @@ func (ss *scaleSet) EnsureBackendPoolDeleted(service *v1.Service, backendPoolID,
 				if err == ErrorNotVmssInstance { // Do nothing for the VMAS nodes.
 					return nil
 				}
-				klog.Errorf("Failed to getNodeNameByIPConfigurationID(%s): %v", ipConfigurationID, err)
+				glog.Errorf("Failed to getNodeNameByIPConfigurationID(%s): %v", ipConfigurationID, err)
 				return err
 			}
 

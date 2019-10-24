@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -87,8 +87,8 @@ func (c *APIServiceRegistrationController) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	klog.Infof("Starting APIServiceRegistrationController")
-	defer klog.Infof("Shutting down APIServiceRegistrationController")
+	glog.Infof("Starting APIServiceRegistrationController")
+	defer glog.Infof("Shutting down APIServiceRegistrationController")
 
 	if !controllers.WaitForCacheSync("APIServiceRegistrationController", stopCh, c.apiServiceSynced) {
 		return
@@ -129,7 +129,7 @@ func (c *APIServiceRegistrationController) processNextWorkItem() bool {
 func (c *APIServiceRegistrationController) enqueue(obj *apiregistration.APIService) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		klog.Errorf("Couldn't get key for object %#v: %v", obj, err)
+		glog.Errorf("Couldn't get key for object %#v: %v", obj, err)
 		return
 	}
 
@@ -138,13 +138,13 @@ func (c *APIServiceRegistrationController) enqueue(obj *apiregistration.APIServi
 
 func (c *APIServiceRegistrationController) addAPIService(obj interface{}) {
 	castObj := obj.(*apiregistration.APIService)
-	klog.V(4).Infof("Adding %s", castObj.Name)
+	glog.V(4).Infof("Adding %s", castObj.Name)
 	c.enqueue(castObj)
 }
 
 func (c *APIServiceRegistrationController) updateAPIService(obj, _ interface{}) {
 	castObj := obj.(*apiregistration.APIService)
-	klog.V(4).Infof("Updating %s", castObj.Name)
+	glog.V(4).Infof("Updating %s", castObj.Name)
 	c.enqueue(castObj)
 }
 
@@ -153,15 +153,15 @@ func (c *APIServiceRegistrationController) deleteAPIService(obj interface{}) {
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			klog.Errorf("Couldn't get object from tombstone %#v", obj)
+			glog.Errorf("Couldn't get object from tombstone %#v", obj)
 			return
 		}
 		castObj, ok = tombstone.Obj.(*apiregistration.APIService)
 		if !ok {
-			klog.Errorf("Tombstone contained object that is not expected %#v", obj)
+			glog.Errorf("Tombstone contained object that is not expected %#v", obj)
 			return
 		}
 	}
-	klog.V(4).Infof("Deleting %q", castObj.Name)
+	glog.V(4).Infof("Deleting %q", castObj.Name)
 	c.enqueue(castObj)
 }

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	autoscaling "k8s.io/api/autoscaling/v2beta2"
 	"k8s.io/api/core/v1"
@@ -81,7 +81,7 @@ func (c *resourceMetricsClient) GetResourceMetric(resource v1.ResourceName, name
 			resValue, found := c.Usage[v1.ResourceName(resource)]
 			if !found {
 				missing = true
-				klog.V(2).Infof("missing resource metric %v for container %s in pod %s/%s", resource, c.Name, namespace, m.Name)
+				glog.V(2).Infof("missing resource metric %v for container %s in pod %s/%s", resource, c.Name, namespace, m.Name)
 				break // containers loop
 			}
 			podSum += resValue.MilliValue()

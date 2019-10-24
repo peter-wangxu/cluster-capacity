@@ -20,27 +20,26 @@ import (
 	"testing"
 	"time"
 
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apiserver/pkg/admission"
-	genericadmissioninitializer "k8s.io/apiserver/pkg/admission/initializer"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/fake"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	clientset "k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset/fake"
+	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+	kubeadmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
 )
 
 // TestPodAdmission verifies various scenarios involving pod/namespace/global node label selectors
 func TestPodAdmission(t *testing.T) {
-	namespace := &corev1.Namespace{
+	namespace := &api.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testNamespace",
 			Namespace: "",
 		},
 	}
 
-	mockClient := fake.NewSimpleClientset(namespace)
+	mockClient := &fake.Clientset{}
 	handler, informerFactory, err := newHandlerForTest(mockClient)
 	if err != nil {
 		t.Errorf("unexpected error initializing handler: %v", err)
@@ -74,16 +73,16 @@ func TestPodAdmission(t *testing.T) {
 			podNodeSelector:                 map[string]string{},
 			mergedNodeSelector:              labels.Set{},
 			ignoreTestNamespaceNodeSelector: true,
-			admit:                           true,
-			testName:                        "No node selectors",
+			admit:    true,
+			testName: "No node selectors",
 		},
 		{
 			defaultNodeSelector:             "infra = false",
 			podNodeSelector:                 map[string]string{},
 			mergedNodeSelector:              labels.Set{"infra": "false"},
 			ignoreTestNamespaceNodeSelector: true,
-			admit:                           true,
-			testName:                        "Default node selector and no conflicts",
+			admit:    true,
+			testName: "Default node selector and no conflicts",
 		},
 		{
 			defaultNodeSelector:   "",
@@ -160,7 +159,7 @@ func TestPodAdmission(t *testing.T) {
 	for _, test := range tests {
 		if !test.ignoreTestNamespaceNodeSelector {
 			namespace.ObjectMeta.Annotations = map[string]string{"scheduler.alpha.kubernetes.io/node-selector": test.namespaceNodeSelector}
-			informerFactory.Core().V1().Namespaces().Informer().GetStore().Update(namespace)
+			informerFactory.Core().InternalVersion().Namespaces().Informer().GetStore().Update(namespace)
 		}
 		handler.clusterNodeSelectors = make(map[string]string)
 		handler.clusterNodeSelectors["clusterDefaultNodeSelector"] = test.defaultNodeSelector
@@ -217,15 +216,7 @@ func TestHandles(t *testing.T) {
 }
 
 func TestIgnoreUpdatingInitializedPod(t *testing.T) {
-	namespaceNodeSelector := "infra=true"
-	namespace := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "testNamespace",
-			Namespace:   "",
-			Annotations: map[string]string{"scheduler.alpha.kubernetes.io/node-selector": namespaceNodeSelector},
-		},
-	}
-	mockClient := fake.NewSimpleClientset(namespace)
+	mockClient := &fake.Clientset{}
 	handler, informerFactory, err := newHandlerForTest(mockClient)
 	if err != nil {
 		t.Errorf("unexpected error initializing handler: %v", err)
@@ -238,7 +229,15 @@ func TestIgnoreUpdatingInitializedPod(t *testing.T) {
 		Spec:       api.PodSpec{NodeSelector: podNodeSelector},
 	}
 	// this conflicts with podNodeSelector
-	err = informerFactory.Core().V1().Namespaces().Informer().GetStore().Update(namespace)
+	namespaceNodeSelector := "infra=true"
+	namespace := &api.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "testNamespace",
+			Namespace:   "",
+			Annotations: map[string]string{"scheduler.alpha.kubernetes.io/node-selector": namespaceNodeSelector},
+		},
+	}
+	err = informerFactory.Core().InternalVersion().Namespaces().Informer().GetStore().Update(namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,10 +250,10 @@ func TestIgnoreUpdatingInitializedPod(t *testing.T) {
 }
 
 // newHandlerForTest returns the admission controller configured for testing.
-func newHandlerForTest(c kubernetes.Interface) (*podNodeSelector, informers.SharedInformerFactory, error) {
+func newHandlerForTest(c clientset.Interface) (*podNodeSelector, informers.SharedInformerFactory, error) {
 	f := informers.NewSharedInformerFactory(c, 5*time.Minute)
 	handler := NewPodNodeSelector(nil)
-	pluginInitializer := genericadmissioninitializer.New(c, f, nil, nil)
+	pluginInitializer := kubeadmission.NewPluginInitializer(c, f, nil, nil, nil)
 	pluginInitializer.Initialize(handler)
 	err := admission.ValidateInitialization(handler)
 	return handler, f, err

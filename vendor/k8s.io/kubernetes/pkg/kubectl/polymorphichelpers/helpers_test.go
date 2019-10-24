@@ -29,7 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	fakeexternal "k8s.io/client-go/kubernetes/fake"
 	testcore "k8s.io/client-go/testing"
-	"k8s.io/kubernetes/pkg/kubectl/util/podutils"
+	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/controller"
 )
 
 func TestGetFirstPod(t *testing.T) {
@@ -48,7 +49,7 @@ func TestGetFirstPod(t *testing.T) {
 		{
 			name:    "kubectl logs - two ready pods",
 			podList: newPodList(2, -1, -1, labelSet),
-			sortBy:  func(pods []*corev1.Pod) sort.Interface { return podutils.ByLogging(pods) },
+			sortBy:  func(pods []*corev1.Pod) sort.Interface { return controller.ByLogging(pods) },
 			expected: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "pod-1",
@@ -70,7 +71,7 @@ func TestGetFirstPod(t *testing.T) {
 		{
 			name:    "kubectl logs - one unhealthy, one healthy",
 			podList: newPodList(2, -1, 1, labelSet),
-			sortBy:  func(pods []*corev1.Pod) sort.Interface { return podutils.ByLogging(pods) },
+			sortBy:  func(pods []*corev1.Pod) sort.Interface { return controller.ByLogging(pods) },
 			expected: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "pod-2",
@@ -93,7 +94,7 @@ func TestGetFirstPod(t *testing.T) {
 		{
 			name:    "kubectl attach - two ready pods",
 			podList: newPodList(2, -1, -1, labelSet),
-			sortBy:  func(pods []*corev1.Pod) sort.Interface { return sort.Reverse(podutils.ActivePods(pods)) },
+			sortBy:  func(pods []*corev1.Pod) sort.Interface { return sort.Reverse(controller.ActivePods(pods)) },
 			expected: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "pod-1",
@@ -118,25 +119,25 @@ func TestGetFirstPod(t *testing.T) {
 			watching: []watch.Event{
 				{
 					Type: watch.Modified,
-					Object: &corev1.Pod{
+					Object: &api.Pod{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:              "pod-1",
 							Namespace:         metav1.NamespaceDefault,
 							CreationTimestamp: metav1.Date(2016, time.April, 1, 1, 0, 0, 0, time.UTC),
 							Labels:            map[string]string{"test": "selector"},
 						},
-						Status: corev1.PodStatus{
-							Conditions: []corev1.PodCondition{
+						Status: api.PodStatus{
+							Conditions: []api.PodCondition{
 								{
-									Status: corev1.ConditionTrue,
-									Type:   corev1.PodReady,
+									Status: api.ConditionTrue,
+									Type:   api.PodReady,
 								},
 							},
 						},
 					},
 				},
 			},
-			sortBy: func(pods []*corev1.Pod) sort.Interface { return sort.Reverse(podutils.ActivePods(pods)) },
+			sortBy: func(pods []*corev1.Pod) sort.Interface { return sort.Reverse(controller.ActivePods(pods)) },
 			expected: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "pod-1",

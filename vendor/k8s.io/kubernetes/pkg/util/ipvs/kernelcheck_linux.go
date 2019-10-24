@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilsexec "k8s.io/utils/exec"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // RequiredIPVSKernelModulesAvailableCheck tests IPVS required kernel modules.
@@ -42,12 +42,7 @@ func (r RequiredIPVSKernelModulesAvailableCheck) Name() string {
 // Check try to validates IPVS required kernel modules exists or not.
 // The name of function can not be changed.
 func (r RequiredIPVSKernelModulesAvailableCheck) Check() (warnings, errors []error) {
-	klog.V(1).Infoln("validating the kernel module IPVS required exists in machine or not")
-
-	kernelVersion, ipvsModules, err := GetKernelVersionAndIPVSMods(r.Executor)
-	if err != nil {
-		errors = append(errors, err)
-	}
+	glog.V(1).Infoln("validating the kernel module IPVS required exists in machine or not")
 
 	// Find out loaded kernel modules
 	out, err := r.Executor.Command("cut", "-f1", "-d", " ", "/proc/modules").CombinedOutput()
@@ -65,6 +60,14 @@ func (r RequiredIPVSKernelModulesAvailableCheck) Check() (warnings, errors []err
 
 	// Check builtin modules exist or not
 	if len(modules) != 0 {
+		kernelVersionFile := "/proc/sys/kernel/osrelease"
+		b, err := r.Executor.Command("cut", "-f1", "-d", " ", kernelVersionFile).CombinedOutput()
+		if err != nil {
+			errors = append(errors, fmt.Errorf("error getting os release kernel version: %v(%s)", err, out))
+			return nil, errors
+		}
+
+		kernelVersion := strings.TrimSpace(string(b))
 		builtinModsFilePath := fmt.Sprintf("/lib/modules/%s/modules.builtin", kernelVersion)
 		out, err := r.Executor.Command("cut", "-f1", "-d", " ", builtinModsFilePath).CombinedOutput()
 		if err != nil {

@@ -611,7 +611,7 @@ func sendRestRequestToScheduler(c clientset.Interface, op string) (string, error
 			Context(ctx).
 			Namespace(metav1.NamespaceSystem).
 			Resource("pods").
-			Name(fmt.Sprintf("kube-scheduler-%v:%v", TestContext.CloudConfig.MasterName, ports.InsecureSchedulerPort)).
+			Name(fmt.Sprintf("kube-scheduler-%v:%v", TestContext.CloudConfig.MasterName, ports.SchedulerPort)).
 			SubResource("proxy").
 			Suffix("metrics").
 			Do().Raw()

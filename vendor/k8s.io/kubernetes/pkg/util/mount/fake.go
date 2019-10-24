@@ -22,7 +22,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // FakeMounter implements mount.Interface for tests.
@@ -85,8 +85,11 @@ func (f *FakeMounter) Mount(source string, target string, fstype string, options
 				}
 			}
 		}
-		// reuse MountPoint.Opts field to mark mount as readonly
-		opts = append(opts, option)
+		// find 'ro' option
+		if option == "ro" {
+			// reuse MountPoint.Opts field to mark mount as readonly
+			opts = append(opts, "ro")
+		}
 	}
 
 	// If target is a symlink, get its absolute path
@@ -94,8 +97,9 @@ func (f *FakeMounter) Mount(source string, target string, fstype string, options
 	if err != nil {
 		absTarget = target
 	}
+
 	f.MountPoints = append(f.MountPoints, MountPoint{Device: source, Path: absTarget, Type: fstype, Opts: opts})
-	klog.V(5).Infof("Fake mounter: mounted %s to %s", source, absTarget)
+	glog.V(5).Infof("Fake mounter: mounted %s to %s", source, absTarget)
 	f.Log = append(f.Log, FakeAction{Action: FakeActionMount, Target: absTarget, Source: source, FSType: fstype})
 	return nil
 }
@@ -113,7 +117,7 @@ func (f *FakeMounter) Unmount(target string) error {
 	newMountpoints := []MountPoint{}
 	for _, mp := range f.MountPoints {
 		if mp.Path == absTarget {
-			klog.V(5).Infof("Fake mounter: unmounted %s from %s", mp.Device, absTarget)
+			glog.V(5).Infof("Fake mounter: unmounted %s from %s", mp.Device, absTarget)
 			// Don't copy it to newMountpoints
 			continue
 		}
@@ -162,11 +166,11 @@ func (f *FakeMounter) IsLikelyNotMountPoint(file string) (bool, error) {
 
 	for _, mp := range f.MountPoints {
 		if mp.Path == absFile {
-			klog.V(5).Infof("isLikelyNotMountPoint for %s: mounted %s, false", file, mp.Path)
+			glog.V(5).Infof("isLikelyNotMountPoint for %s: mounted %s, false", file, mp.Path)
 			return false, nil
 		}
 	}
-	klog.V(5).Infof("isLikelyNotMountPoint for %s: true", file)
+	glog.V(5).Infof("isLikelyNotMountPoint for %s: true", file)
 	return true, nil
 }
 

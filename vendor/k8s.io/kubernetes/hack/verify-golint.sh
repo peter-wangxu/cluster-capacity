@@ -23,7 +23,6 @@ source "${KUBE_ROOT}/hack/lib/init.sh"
 
 kube::golang::verify_go_version
 
-
 # Ensure that we find the binaries we build before anything else.
 export GOBIN="${KUBE_OUTPUT_BINPATH}"
 PATH="${GOBIN}:${PATH}"
@@ -31,7 +30,6 @@ PATH="${GOBIN}:${PATH}"
 # Install golint from vendor
 echo 'installing golint from vendor'
 go install k8s.io/kubernetes/vendor/golang.org/x/lint/golint
-
 
 cd "${KUBE_ROOT}"
 
@@ -65,7 +63,7 @@ export IFS=$'\n'
 # as the prefix, however if we run it outside it returns the full path of the file
 # with a leading underscore. We'll need to support both scenarios for all_packages.
 all_packages=(
-  $(go list -e ./... | egrep -v "/(third_party|vendor|staging/src/k8s.io/client-go/pkg|generated|clientset_generated)" | sed -e 's|^k8s.io/kubernetes/||' -e "s|^_\(${KUBE_ROOT}/\)\{0,1\}||")
+  $(go list -e ./... | egrep -v "/(third_party|vendor|staging/src/k8s.io/client-go/pkg|generated|clientset_generated)" | sed -e 's|^k8s.io/kubernetes/||' -e "s|^_${KUBE_ROOT}/\?||")
 )
 failing_packages=(
   $(cat $failure_file)

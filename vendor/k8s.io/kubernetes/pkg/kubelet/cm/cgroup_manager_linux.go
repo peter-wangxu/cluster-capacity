@@ -25,11 +25,11 @@ import (
 	"time"
 
 	units "github.com/docker/go-units"
+	"github.com/golang/glog"
 	libcontainercgroups "github.com/opencontainers/runc/libcontainer/cgroups"
 	cgroupfs "github.com/opencontainers/runc/libcontainer/cgroups/fs"
 	cgroupsystemd "github.com/opencontainers/runc/libcontainer/cgroups/systemd"
 	libcontainerconfigs "github.com/opencontainers/runc/libcontainer/configs"
-	"k8s.io/klog"
 
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
@@ -207,16 +207,18 @@ func NewCgroupManager(cs *CgroupSubsystems, cgroupDriver string) CgroupManager {
 func (m *cgroupManagerImpl) Name(name CgroupName) string {
 	if m.adapter.cgroupManagerType == libcontainerSystemd {
 		return name.ToSystemd()
+	} else {
+		return name.ToCgroupfs()
 	}
-	return name.ToCgroupfs()
 }
 
 // CgroupName converts the literal cgroupfs name on the host to an internal identifier.
 func (m *cgroupManagerImpl) CgroupName(name string) CgroupName {
 	if m.adapter.cgroupManagerType == libcontainerSystemd {
 		return ParseSystemdToCgroupName(name)
+	} else {
+		return ParseCgroupfsToCgroupName(name)
 	}
-	return ParseCgroupfsToCgroupName(name)
 }
 
 // buildCgroupPaths builds a path to each cgroup subsystem for the specified name.
@@ -258,7 +260,6 @@ func (m *cgroupManagerImpl) Exists(name CgroupName) bool {
 	// once resolved, we can remove this code.
 	whitelistControllers := sets.NewString("cpu", "cpuacct", "cpuset", "memory", "systemd")
 
-	var missingPaths []string
 	// If even one cgroup path doesn't exist, then the cgroup doesn't exist.
 	for controller, path := range cgroupPaths {
 		// ignore mounts we don't care about
@@ -266,13 +267,8 @@ func (m *cgroupManagerImpl) Exists(name CgroupName) bool {
 			continue
 		}
 		if !libcontainercgroups.PathExists(path) {
-			missingPaths = append(missingPaths, path)
+			return false
 		}
-	}
-
-	if len(missingPaths) > 0 {
-		klog.V(4).Infof("The Cgroup %v has some missing paths: %v", name, missingPaths)
-		return false
 	}
 
 	return true
@@ -350,7 +346,7 @@ func setSupportedSubsystems(cgroupConfig *libcontainerconfigs.Cgroup) error {
 				return fmt.Errorf("Failed to find subsystem mount for required subsystem: %v", sys.Name())
 			}
 			// the cgroup is not mounted, but its not required so continue...
-			klog.V(6).Infof("Unable to find subsystem mount for optional subsystem: %v", sys.Name())
+			glog.V(6).Infof("Unable to find subsystem mount for optional subsystem: %v", sys.Name())
 			continue
 		}
 		if err := sys.Set(cgroupConfig.Paths[sys.Name()], cgroupConfig); err != nil {
@@ -512,7 +508,7 @@ func (m *cgroupManagerImpl) Pids(name CgroupName) []int {
 		// WalkFunc which is called for each file and directory in the pod cgroup dir
 		visitor := func(path string, info os.FileInfo, err error) error {
 			if err != nil {
-				klog.V(4).Infof("cgroup manager encountered error scanning cgroup path %q: %v", path, err)
+				glog.V(4).Infof("cgroup manager encountered error scanning cgroup path %q: %v", path, err)
 				return filepath.SkipDir
 			}
 			if !info.IsDir() {
@@ -520,7 +516,7 @@ func (m *cgroupManagerImpl) Pids(name CgroupName) []int {
 			}
 			pids, err = getCgroupProcs(path)
 			if err != nil {
-				klog.V(4).Infof("cgroup manager encountered error getting procs for cgroup path %q: %v", path, err)
+				glog.V(4).Infof("cgroup manager encountered error getting procs for cgroup path %q: %v", path, err)
 				return filepath.SkipDir
 			}
 			pidsToKill.Insert(pids...)
@@ -530,7 +526,7 @@ func (m *cgroupManagerImpl) Pids(name CgroupName) []int {
 		// container cgroups haven't been GCed yet. Get attached processes to
 		// all such unwanted containers under the pod cgroup
 		if err = filepath.Walk(dir, visitor); err != nil {
-			klog.V(4).Infof("cgroup manager encountered error scanning pids for directory: %q: %v", dir, err)
+			glog.V(4).Infof("cgroup manager encountered error scanning pids for directory: %q: %v", dir, err)
 		}
 	}
 	return pidsToKill.List()
@@ -558,7 +554,7 @@ func getStatsSupportedSubsystems(cgroupPaths map[string]string) (*libcontainercg
 				return nil, fmt.Errorf("Failed to find subsystem mount for required subsystem: %v", sys.Name())
 			}
 			// the cgroup is not mounted, but its not required so continue...
-			klog.V(6).Infof("Unable to find subsystem mount for optional subsystem: %v", sys.Name())
+			glog.V(6).Infof("Unable to find subsystem mount for optional subsystem: %v", sys.Name())
 			continue
 		}
 		if err := sys.GetStats(cgroupPaths[sys.Name()], stats); err != nil {

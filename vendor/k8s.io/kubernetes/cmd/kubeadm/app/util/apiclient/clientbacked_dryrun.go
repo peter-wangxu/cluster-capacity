@@ -29,8 +29,6 @@ import (
 	"k8s.io/client-go/rest"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/pkg/errors"
 )
 
 // ClientBackedDryRunGetter implements the DryRunGetter interface for use in NewDryRunClient() and proxies all GET and LIST requests to the backing API server reachable via rest.Config
@@ -63,11 +61,11 @@ func NewClientBackedDryRunGetter(config *rest.Config) (*ClientBackedDryRunGetter
 func NewClientBackedDryRunGetterFromKubeconfig(file string) (*ClientBackedDryRunGetter, error) {
 	config, err := clientcmd.LoadFromFile(file)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load kubeconfig")
+		return nil, fmt.Errorf("failed to load kubeconfig: %v", err)
 	}
 	clientConfig, err := clientcmd.NewDefaultClientConfig(*config, &clientcmd.ConfigOverrides{}).ClientConfig()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create API client configuration from kubeconfig")
+		return nil, fmt.Errorf("failed to create API client configuration from kubeconfig: %v", err)
 	}
 	return NewClientBackedDryRunGetter(clientConfig)
 }

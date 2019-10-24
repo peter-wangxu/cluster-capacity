@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -61,7 +61,7 @@ func ConfirmNoEscalation(ctx context.Context, ruleResolver AuthorizationRuleReso
 	ownerRules, err := ruleResolver.RulesFor(user, namespace)
 	if err != nil {
 		// As per AuthorizationRuleResolver contract, this may return a non fatal error with an incomplete list of policies. Log the error and continue.
-		klog.V(1).Infof("non-fatal error getting local rules for %v: %v", user, err)
+		glog.V(1).Infof("non-fatal error getting local rules for %v: %v", user, err)
 		ruleResolutionErrors = append(ruleResolutionErrors, err)
 	}
 

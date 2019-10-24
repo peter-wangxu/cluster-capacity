@@ -31,7 +31,6 @@ import (
 	kubeletmetrics "k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/e2e/framework/metrics"
-	"k8s.io/kubernetes/test/e2e/storage/testsuites"
 	"k8s.io/kubernetes/test/e2e/storage/utils"
 )
 
@@ -53,9 +52,9 @@ var _ = utils.SIGDescribe("[Serial] Volume metrics", func() {
 		defaultScName := getDefaultStorageClassName(c)
 		verifyDefaultStorageClass(c, defaultScName, true)
 
-		test := testsuites.StorageClassTest{
-			Name:      "default",
-			ClaimSize: "2Gi",
+		test := storageClassTest{
+			name:      "default",
+			claimSize: "2Gi",
 		}
 
 		pvc = newClaim(test, ns, "default")

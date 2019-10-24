@@ -17,28 +17,27 @@ limitations under the License.
 package bootstrap
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/authentication/user"
-	bootstrapapi "k8s.io/cluster-bootstrap/token/api"
+	bootstrapapi "k8s.io/client-go/tools/bootstrap/token/api"
+	api "k8s.io/kubernetes/pkg/apis/core"
 )
 
 type lister struct {
-	secrets []*corev1.Secret
+	secrets []*api.Secret
 }
 
-func (l *lister) List(selector labels.Selector) (ret []*corev1.Secret, err error) {
+func (l *lister) List(selector labels.Selector) (ret []*api.Secret, err error) {
 	return l.secrets, nil
 }
 
-func (l *lister) Get(name string) (*corev1.Secret, error) {
+func (l *lister) Get(name string) (*api.Secret, error) {
 	for _, s := range l.secrets {
 		if s.Name == name {
 			return s, nil
@@ -58,7 +57,7 @@ func TestTokenAuthenticator(t *testing.T) {
 	tests := []struct {
 		name string
 
-		secrets []*corev1.Secret
+		secrets []*api.Secret
 		token   string
 
 		wantNotFound bool
@@ -66,7 +65,7 @@ func TestTokenAuthenticator(t *testing.T) {
 	}{
 		{
 			name: "valid token",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: bootstrapapi.BootstrapTokenSecretPrefix + tokenID,
@@ -87,7 +86,7 @@ func TestTokenAuthenticator(t *testing.T) {
 		},
 		{
 			name: "valid token with extra group",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: bootstrapapi.BootstrapTokenSecretPrefix + tokenID,
@@ -109,7 +108,7 @@ func TestTokenAuthenticator(t *testing.T) {
 		},
 		{
 			name: "invalid group",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: bootstrapapi.BootstrapTokenSecretPrefix + tokenID,
@@ -128,7 +127,7 @@ func TestTokenAuthenticator(t *testing.T) {
 		},
 		{
 			name: "invalid secret name",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "bad-name",
@@ -146,7 +145,7 @@ func TestTokenAuthenticator(t *testing.T) {
 		},
 		{
 			name: "no usage",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: bootstrapapi.BootstrapTokenSecretPrefix + tokenID,
@@ -163,7 +162,7 @@ func TestTokenAuthenticator(t *testing.T) {
 		},
 		{
 			name: "wrong token",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: bootstrapapi.BootstrapTokenSecretPrefix + tokenID,
@@ -181,7 +180,7 @@ func TestTokenAuthenticator(t *testing.T) {
 		},
 		{
 			name: "deleted token",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:              bootstrapapi.BootstrapTokenSecretPrefix + tokenID,
@@ -200,7 +199,7 @@ func TestTokenAuthenticator(t *testing.T) {
 		},
 		{
 			name: "expired token",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: bootstrapapi.BootstrapTokenSecretPrefix + tokenID,
@@ -219,7 +218,7 @@ func TestTokenAuthenticator(t *testing.T) {
 		},
 		{
 			name: "not expired token",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: bootstrapapi.BootstrapTokenSecretPrefix + tokenID,
@@ -241,7 +240,7 @@ func TestTokenAuthenticator(t *testing.T) {
 		},
 		{
 			name: "token id wrong length",
-			secrets: []*corev1.Secret{
+			secrets: []*api.Secret{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: bootstrapapi.BootstrapTokenSecretPrefix + "foo",
@@ -263,7 +262,7 @@ func TestTokenAuthenticator(t *testing.T) {
 	for _, test := range tests {
 		func() {
 			a := NewTokenAuthenticator(&lister{test.secrets})
-			resp, found, err := a.AuthenticateToken(context.Background(), test.token)
+			u, found, err := a.AuthenticateToken(test.token)
 			if err != nil {
 				t.Errorf("test %q returned an error: %v", test.name, err)
 				return
@@ -281,7 +280,8 @@ func TestTokenAuthenticator(t *testing.T) {
 				return
 			}
 
-			gotUser := resp.User.(*user.DefaultInfo)
+			gotUser := u.(*user.DefaultInfo)
+
 			if !reflect.DeepEqual(gotUser, test.wantUser) {
 				t.Errorf("test %q want user=%#v, got=%#v", test.name, test.wantUser, gotUser)
 			}
@@ -292,13 +292,13 @@ func TestTokenAuthenticator(t *testing.T) {
 func TestGetGroups(t *testing.T) {
 	tests := []struct {
 		name         string
-		secret       *corev1.Secret
+		secret       *api.Secret
 		expectResult []string
 		expectError  bool
 	}{
 		{
 			name: "not set",
-			secret: &corev1.Secret{
+			secret: &api.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: "test"},
 				Data:       map[string][]byte{},
 			},
@@ -306,7 +306,7 @@ func TestGetGroups(t *testing.T) {
 		},
 		{
 			name: "set to empty value",
-			secret: &corev1.Secret{
+			secret: &api.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: "test"},
 				Data: map[string][]byte{
 					bootstrapapi.BootstrapTokenExtraGroupsKey: []byte(""),
@@ -316,7 +316,7 @@ func TestGetGroups(t *testing.T) {
 		},
 		{
 			name: "invalid prefix",
-			secret: &corev1.Secret{
+			secret: &api.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: "test"},
 				Data: map[string][]byte{
 					bootstrapapi.BootstrapTokenExtraGroupsKey: []byte("foo"),
@@ -326,7 +326,7 @@ func TestGetGroups(t *testing.T) {
 		},
 		{
 			name: "valid",
-			secret: &corev1.Secret{
+			secret: &api.Secret{
 				ObjectMeta: metav1.ObjectMeta{Name: "test"},
 				Data: map[string][]byte{
 					bootstrapapi.BootstrapTokenExtraGroupsKey: []byte("system:bootstrappers:foo,system:bootstrappers:bar,system:bootstrappers:bar"),

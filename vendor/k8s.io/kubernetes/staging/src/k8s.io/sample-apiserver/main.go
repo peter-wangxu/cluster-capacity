@@ -20,7 +20,7 @@ import (
 	"flag"
 	"os"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/util/logs"
@@ -36,6 +36,6 @@ func main() {
 	cmd := server.NewCommandStartWardleServer(options, stopCh)
 	cmd.Flags().AddGoFlagSet(flag.CommandLine)
 	if err := cmd.Execute(); err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 }

@@ -23,9 +23,9 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/golang/glog"
 	"k8s.io/api/admission/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog"
 	// TODO: try this library to see if it generates correct json patch
 	// https://github.com/mattbaird/jsonpatch
 )
@@ -56,11 +56,11 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	// verify the content type is accurate
 	contentType := r.Header.Get("Content-Type")
 	if contentType != "application/json" {
-		klog.Errorf("contentType=%s, expect application/json", contentType)
+		glog.Errorf("contentType=%s, expect application/json", contentType)
 		return
 	}
 
-	klog.V(2).Info(fmt.Sprintf("handling request: %s", body))
+	glog.V(2).Info(fmt.Sprintf("handling request: %s", body))
 
 	// The AdmissionReview that was sent to the webhook
 	requestedAdmissionReview := v1beta1.AdmissionReview{}
@@ -70,7 +70,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 
 	deserializer := codecs.UniversalDeserializer()
 	if _, _, err := deserializer.Decode(body, nil, &requestedAdmissionReview); err != nil {
-		klog.Error(err)
+		glog.Error(err)
 		responseAdmissionReview.Response = toAdmissionResponse(err)
 	} else {
 		// pass to admitFunc
@@ -80,23 +80,19 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	// Return the same UID
 	responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 
-	klog.V(2).Info(fmt.Sprintf("sending response: %v", responseAdmissionReview.Response))
+	glog.V(2).Info(fmt.Sprintf("sending response: %v", responseAdmissionReview.Response))
 
 	respBytes, err := json.Marshal(responseAdmissionReview)
 	if err != nil {
-		klog.Error(err)
+		glog.Error(err)
 	}
 	if _, err := w.Write(respBytes); err != nil {
-		klog.Error(err)
+		glog.Error(err)
 	}
 }
 
 func serveAlwaysDeny(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, alwaysDeny)
-}
-
-func serveAddLabel(w http.ResponseWriter, r *http.Request) {
-	serve(w, r, addLabel)
 }
 
 func servePods(w http.ResponseWriter, r *http.Request) {
@@ -137,7 +133,6 @@ func main() {
 	flag.Parse()
 
 	http.HandleFunc("/always-deny", serveAlwaysDeny)
-	http.HandleFunc("/add-label", serveAddLabel)
 	http.HandleFunc("/pods", servePods)
 	http.HandleFunc("/pods/attach", serveAttachingPods)
 	http.HandleFunc("/mutating-pods", serveMutatePods)

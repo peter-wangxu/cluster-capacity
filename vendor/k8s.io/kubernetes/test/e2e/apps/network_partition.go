@@ -198,12 +198,10 @@ var _ = SIGDescribe("Network Partition [Disruptive] [Slow]", func() {
 				By(fmt.Sprintf("Block traffic from node %s to the master", node.Name))
 				host, err := framework.GetNodeExternalIP(&node)
 				framework.ExpectNoError(err)
-				masterAddresses := framework.GetAllMasterAddresses(c)
+				master := framework.GetMasterAddress(c)
 				defer func() {
 					By(fmt.Sprintf("Unblock traffic from node %s to the master", node.Name))
-					for _, masterAddress := range masterAddresses {
-						framework.UnblockNetwork(host, masterAddress)
-					}
+					framework.UnblockNetwork(host, master)
 
 					if CurrentGinkgoTestDescription().Failed {
 						return
@@ -216,9 +214,7 @@ var _ = SIGDescribe("Network Partition [Disruptive] [Slow]", func() {
 					}
 				}()
 
-				for _, masterAddress := range masterAddresses {
-					framework.BlockNetwork(host, masterAddress)
-				}
+				framework.BlockNetwork(host, master)
 
 				By("Expect to observe node and pod status change from Ready to NotReady after network partition")
 				expectNodeReadiness(false, newNode)
@@ -580,12 +576,10 @@ var _ = SIGDescribe("Network Partition [Disruptive] [Slow]", func() {
 				By(fmt.Sprintf("Block traffic from node %s to the master", node.Name))
 				host, err := framework.GetNodeExternalIP(&node)
 				framework.ExpectNoError(err)
-				masterAddresses := framework.GetAllMasterAddresses(c)
+				master := framework.GetMasterAddress(c)
 				defer func() {
 					By(fmt.Sprintf("Unblock traffic from node %s to the master", node.Name))
-					for _, masterAddress := range masterAddresses {
-						framework.UnblockNetwork(host, masterAddress)
-					}
+					framework.UnblockNetwork(host, master)
 
 					if CurrentGinkgoTestDescription().Failed {
 						return
@@ -595,9 +589,7 @@ var _ = SIGDescribe("Network Partition [Disruptive] [Slow]", func() {
 					expectNodeReadiness(true, newNode)
 				}()
 
-				for _, masterAddress := range masterAddresses {
-					framework.BlockNetwork(host, masterAddress)
-				}
+				framework.BlockNetwork(host, master)
 
 				By("Expect to observe node and pod status change from Ready to NotReady after network partition")
 				expectNodeReadiness(false, newNode)

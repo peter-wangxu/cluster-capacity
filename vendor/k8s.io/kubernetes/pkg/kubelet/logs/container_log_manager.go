@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -171,7 +171,7 @@ func (c *containerLogManager) Start() {
 	// Start a goroutine periodically does container log rotation.
 	go wait.Forever(func() {
 		if err := c.rotateLogs(); err != nil {
-			klog.Errorf("Failed to rotate container logs: %v", err)
+			glog.Errorf("Failed to rotate container logs: %v", err)
 		}
 	}, logMonitorPeriod)
 }
@@ -193,27 +193,27 @@ func (c *containerLogManager) rotateLogs() error {
 		// Note that we should not block log rotate for an error of a single container.
 		status, err := c.runtimeService.ContainerStatus(id)
 		if err != nil {
-			klog.Errorf("Failed to get container status for %q: %v", id, err)
+			glog.Errorf("Failed to get container status for %q: %v", id, err)
 			continue
 		}
 		path := status.GetLogPath()
 		info, err := os.Stat(path)
 		if err != nil {
 			if !os.IsNotExist(err) {
-				klog.Errorf("Failed to stat container log %q: %v", path, err)
+				glog.Errorf("Failed to stat container log %q: %v", path, err)
 				continue
 			}
 			// In rotateLatestLog, there are several cases that we may
 			// lose original container log after ReopenContainerLog fails.
 			// We try to recover it by reopening container log.
 			if err := c.runtimeService.ReopenContainerLog(id); err != nil {
-				klog.Errorf("Container %q log %q doesn't exist, reopen container log failed: %v", id, path, err)
+				glog.Errorf("Container %q log %q doesn't exist, reopen container log failed: %v", id, path, err)
 				continue
 			}
 			// The container log should be recovered.
 			info, err = os.Stat(path)
 			if err != nil {
-				klog.Errorf("Failed to stat container log %q after reopen: %v", path, err)
+				glog.Errorf("Failed to stat container log %q after reopen: %v", path, err)
 				continue
 			}
 		}
@@ -222,7 +222,7 @@ func (c *containerLogManager) rotateLogs() error {
 		}
 		// Perform log rotation.
 		if err := c.rotateLog(id, path); err != nil {
-			klog.Errorf("Failed to rotate log %q for container %q: %v", path, id, err)
+			glog.Errorf("Failed to rotate log %q for container %q: %v", path, id, err)
 			continue
 		}
 	}
@@ -379,7 +379,7 @@ func (c *containerLogManager) rotateLatestLog(id, log string) error {
 			// This shouldn't happen.
 			// Report an error if this happens, because we will lose original
 			// log.
-			klog.Errorf("Failed to rename rotated log %q back to %q: %v, reopen container log error: %v", rotated, log, renameErr, err)
+			glog.Errorf("Failed to rename rotated log %q back to %q: %v, reopen container log error: %v", rotated, log, renameErr, err)
 		}
 		return fmt.Errorf("failed to reopen container log %q: %v", id, err)
 	}

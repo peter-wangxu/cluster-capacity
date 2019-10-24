@@ -56,7 +56,6 @@ RUN echo "Yes, do as I say!" | apt-get purge \
     libprocps6 \
     libslang2 \
     libss2 \
-    libsystemd0 \
     libtext-charwidth-perl libtext-iconv-perl libtext-wrapi18n-perl \
     ncurses-base \
     ncurses-bin \

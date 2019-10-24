@@ -138,6 +138,9 @@ func SetDefaults_JoinConfiguration(obj *JoinConfiguration) {
 			Duration: DefaultDiscoveryTimeout,
 		}
 	}
+	if obj.ClusterName == "" {
+		obj.ClusterName = DefaultClusterName
+	}
 
 	SetDefaults_NodeRegistrationOptions(&obj.NodeRegistration)
 	SetDefaults_APIEndpoint(&obj.APIEndpoint)

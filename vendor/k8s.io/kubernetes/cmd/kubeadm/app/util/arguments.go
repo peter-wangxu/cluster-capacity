@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // BuildArgumentListFromMap takes two string-string maps, one with the base arguments and one
@@ -91,10 +89,10 @@ func ReplaceArgument(command []string, argMutateFunc func(map[string]string) map
 // parseArgument parses the argument "--foo=bar" to "foo" and "bar"
 func parseArgument(arg string) (string, string, error) {
 	if !strings.HasPrefix(arg, "--") {
-		return "", "", errors.New("the argument should start with '--'")
+		return "", "", fmt.Errorf("the argument should start with '--'")
 	}
 	if !strings.Contains(arg, "=") {
-		return "", "", errors.New("the argument should have a '=' between the flag and the value")
+		return "", "", fmt.Errorf("the argument should have a '=' between the flag and the value")
 	}
 	// Remove the starting --
 	arg = strings.TrimPrefix(arg, "--")
@@ -103,10 +101,10 @@ func parseArgument(arg string) (string, string, error) {
 
 	// Make sure both a key and value is present
 	if len(keyvalSlice) != 2 {
-		return "", "", errors.New("the argument must have both a key and a value")
+		return "", "", fmt.Errorf("the argument must have both a key and a value")
 	}
 	if len(keyvalSlice[0]) == 0 {
-		return "", "", errors.New("the argument must have a key")
+		return "", "", fmt.Errorf("the argument must have a key")
 	}
 
 	return keyvalSlice[0], keyvalSlice[1], nil

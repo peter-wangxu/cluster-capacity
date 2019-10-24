@@ -24,6 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/golang/glog"
 	v1 "k8s.io/api/core/v1"
 	storage "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	clientset "k8s.io/client-go/kubernetes"
-	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/features"
@@ -100,7 +100,7 @@ func IsReady(dir string) bool {
 	}
 
 	if !s.Mode().IsRegular() {
-		klog.Errorf("ready-file is not a file: %s", readyFile)
+		glog.Errorf("ready-file is not a file: %s", readyFile)
 		return false
 	}
 
@@ -112,14 +112,14 @@ func IsReady(dir string) bool {
 // created.
 func SetReady(dir string) {
 	if err := os.MkdirAll(dir, 0750); err != nil && !os.IsExist(err) {
-		klog.Errorf("Can't mkdir %s: %v", dir, err)
+		glog.Errorf("Can't mkdir %s: %v", dir, err)
 		return
 	}
 
 	readyFile := path.Join(dir, readyFileName)
 	file, err := os.Create(readyFile)
 	if err != nil {
-		klog.Errorf("Can't touch %s: %v", readyFile, err)
+		glog.Errorf("Can't touch %s: %v", readyFile, err)
 		return
 	}
 	file.Close()
@@ -189,7 +189,6 @@ func GetSecretForPV(secretNamespace, secretName, volumePluginName string, kubeCl
 	return secret, nil
 }
 
-// GetClassForVolume locates storage class by persistent volume
 func GetClassForVolume(kubeClient clientset.Interface, pv *v1.PersistentVolume) (*storage.StorageClass, error) {
 	if kubeClient == nil {
 		return nil, fmt.Errorf("Cannot get kube client")
@@ -219,7 +218,7 @@ func checkVolumeNodeAffinity(pv *v1.PersistentVolume, nodeLabels map[string]stri
 
 	if pv.Spec.NodeAffinity.Required != nil {
 		terms := pv.Spec.NodeAffinity.Required.NodeSelectorTerms
-		klog.V(10).Infof("Match for Required node selector terms %+v", terms)
+		glog.V(10).Infof("Match for Required node selector terms %+v", terms)
 		if !v1helper.MatchNodeSelectorTerms(terms, labels.Set(nodeLabels), nil) {
 			return fmt.Errorf("No matching NodeSelectorTerms")
 		}
@@ -308,11 +307,11 @@ func SelectZonesForVolume(zoneParameterPresent, zonesParameterPresent bool, zone
 		}
 		// scheduler will guarantee if node != null above, zoneFromNode is member of allowedZones.
 		// so if zoneFromNode != "", we can safely assume it is part of allowedZones.
-		zones, err := chooseZonesForVolumeIncludingZone(allowedZones, pvcName, zoneFromNode, numReplicas)
-		if err != nil {
+		if zones, err := chooseZonesForVolumeIncludingZone(allowedZones, pvcName, zoneFromNode, numReplicas); err != nil {
 			return nil, fmt.Errorf("cannot process zones in allowedTopologies: %v", err)
+		} else {
+			return zones, nil
 		}
-		return zones, nil
 	}
 
 	// pick zone from parameters if present
@@ -334,11 +333,11 @@ func SelectZonesForVolume(zoneParameterPresent, zonesParameterPresent bool, zone
 	// pick zone from zones with nodes
 	if zonesWithNodes.Len() > 0 {
 		// If node != null (and thus zoneFromNode != ""), zoneFromNode will be member of zonesWithNodes
-		zones, err := chooseZonesForVolumeIncludingZone(zonesWithNodes, pvcName, zoneFromNode, numReplicas)
-		if err != nil {
+		if zones, err := chooseZonesForVolumeIncludingZone(zonesWithNodes, pvcName, zoneFromNode, numReplicas); err != nil {
 			return nil, fmt.Errorf("cannot process zones where nodes exist in the cluster: %v", err)
+		} else {
+			return zones, nil
 		}
-		return zones, nil
 	}
 	return nil, fmt.Errorf("cannot determine zones to provision volume in")
 }
@@ -360,7 +359,6 @@ func ZonesFromAllowedTopologies(allowedTopologies []v1.TopologySelectorTerm) (se
 	return zones, nil
 }
 
-// ZonesSetToLabelValue converts zones set to label value
 func ZonesSetToLabelValue(strSet sets.String) string {
 	return strings.Join(strSet.UnsortedList(), kubeletapis.LabelMultiZoneDelimiter)
 }
@@ -441,7 +439,7 @@ func CalculateTimeoutForVolume(minimumTimeout, timeoutIncrement int, pv *v1.Pers
 func RoundUpSize(volumeSizeBytes int64, allocationUnitBytes int64) int64 {
 	roundedUp := volumeSizeBytes / allocationUnitBytes
 	if volumeSizeBytes%allocationUnitBytes > 0 {
-		roundedUp++
+		roundedUp += 1
 	}
 	return roundedUp
 }
@@ -535,7 +533,7 @@ func ChooseZoneForVolume(zones sets.String, pvcName string) string {
 	zoneSlice := zones.List()
 	zone := zoneSlice[(hash+index)%uint32(len(zoneSlice))]
 
-	klog.V(2).Infof("Creating volume for PVC %q; chose zone=%q from zones=%q", pvcName, zone, zoneSlice)
+	glog.V(2).Infof("Creating volume for PVC %q; chose zone=%q from zones=%q", pvcName, zone, zoneSlice)
 	return zone
 }
 
@@ -594,7 +592,7 @@ func ChooseZonesForVolume(zones sets.String, pvcName string, numZones uint32) se
 		replicaZones.Insert(zone)
 	}
 
-	klog.V(2).Infof("Creating volume for replicated PVC %q; chosen zones=%q from zones=%q",
+	glog.V(2).Infof("Creating volume for replicated PVC %q; chosen zones=%q from zones=%q",
 		pvcName, replicaZones.UnsortedList(), zoneSlice)
 	return replicaZones
 }
@@ -602,7 +600,7 @@ func ChooseZonesForVolume(zones sets.String, pvcName string, numZones uint32) se
 func getPVCNameHashAndIndexOffset(pvcName string) (hash uint32, index uint32) {
 	if pvcName == "" {
 		// We should always be called with a name; this shouldn't happen
-		klog.Warningf("No name defined during volume create; choosing random zone")
+		glog.Warningf("No name defined during volume create; choosing random zone")
 
 		hash = rand.Uint32()
 	} else {
@@ -638,7 +636,7 @@ func getPVCNameHashAndIndexOffset(pvcName string) (hash uint32, index uint32) {
 					hashString = hashString[lastDash+1:]
 				}
 
-				klog.V(2).Infof("Detected StatefulSet-style volume name %q; index=%d", pvcName, index)
+				glog.V(2).Infof("Detected StatefulSet-style volume name %q; index=%d", pvcName, index)
 			}
 		}
 
@@ -654,7 +652,7 @@ func getPVCNameHashAndIndexOffset(pvcName string) (hash uint32, index uint32) {
 // UnmountViaEmptyDir delegates the tear down operation for secret, configmap, git_repo and downwardapi
 // to empty_dir
 func UnmountViaEmptyDir(dir string, host volume.VolumeHost, volName string, volSpec volume.Spec, podUID utypes.UID) error {
-	klog.V(3).Infof("Tearing down volume %v for pod %v at %v", volName, podUID, dir)
+	glog.V(3).Infof("Tearing down volume %v for pod %v at %v", volName, podUID, dir)
 
 	// Wrap EmptyDir, let it do the teardown.
 	wrapped, err := host.NewWrapperUnmounter(volName, volSpec, podUID)
@@ -696,7 +694,7 @@ func JoinMountOptions(userOptions []string, systemOptions []string) []string {
 	for _, mountOption := range systemOptions {
 		allMountOptions.Insert(mountOption)
 	}
-	return allMountOptions.List()
+	return allMountOptions.UnsortedList()
 }
 
 // ValidateZone returns:
@@ -874,38 +872,6 @@ func CheckVolumeModeFilesystem(volumeSpec *volume.Spec) (bool, error) {
 // If the mode is Block, return true otherwise return false.
 func CheckPersistentVolumeClaimModeBlock(pvc *v1.PersistentVolumeClaim) bool {
 	return utilfeature.DefaultFeatureGate.Enabled(features.BlockVolume) && pvc.Spec.VolumeMode != nil && *pvc.Spec.VolumeMode == v1.PersistentVolumeBlock
-}
-
-// IsWindowsUNCPath checks if path is prefixed with \\
-// This can be used to skip any processing of paths
-// that point to SMB shares, local named pipes and local UNC path
-func IsWindowsUNCPath(goos, path string) bool {
-	if goos != "windows" {
-		return false
-	}
-	// Check for UNC prefix \\
-	if strings.HasPrefix(path, `\\`) {
-		return true
-	}
-	return false
-}
-
-// IsWindowsLocalPath checks if path is a local path
-// prefixed with "/" or "\" like "/foo/bar" or "\foo\bar"
-func IsWindowsLocalPath(goos, path string) bool {
-	if goos != "windows" {
-		return false
-	}
-	if IsWindowsUNCPath(goos, path) {
-		return false
-	}
-	if strings.Contains(path, ":") {
-		return false
-	}
-	if !(strings.HasPrefix(path, `/`) || strings.HasPrefix(path, `\`)) {
-		return false
-	}
-	return true
 }
 
 // MakeAbsolutePath convert path to absolute path according to GOOS

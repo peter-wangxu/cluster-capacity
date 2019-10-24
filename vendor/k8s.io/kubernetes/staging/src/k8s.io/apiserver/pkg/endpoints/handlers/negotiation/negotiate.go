@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/munnerz/goautoneg"
+	"bitbucket.org/ww/goautoneg"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"

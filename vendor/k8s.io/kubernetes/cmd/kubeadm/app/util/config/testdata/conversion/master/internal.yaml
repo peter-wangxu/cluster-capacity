@@ -1,19 +1,14 @@
-APIServer:
-  CertSANs: null
-  ExtraArgs:
-    authorization-mode: Node,RBAC,Webhook
-  ExtraVolumes:
-  - HostPath: /host/read-only
-    MountPath: /mount/read-only
-    Name: ReadOnlyVolume
-    PathType: ""
-    ReadOnly: true
-  - HostPath: /host/writable
-    MountPath: /mount/writable
-    Name: WritableVolume
-    PathType: ""
-    ReadOnly: false
-  TimeoutForControlPlane: 4m0s
+APIEndpoint:
+  AdvertiseAddress: 192.168.2.2
+  BindPort: 6443
+APIServerCertSANs: null
+APIServerExtraArgs:
+  authorization-mode: Node,RBAC,Webhook
+APIServerExtraVolumes: null
+AuditPolicyConfiguration:
+  LogDir: /var/log/kubernetes/audit
+  LogMaxAge: 2
+  Path: ""
 BootstrapTokens:
 - Description: ""
   Expires: null
@@ -59,7 +54,6 @@ ComponentConfigs:
       ExcludeCIDRs: null
       MinSyncPeriod: 0s
       Scheduler: ""
-      StrictARP: false
       SyncPeriod: 30s
     MetricsBindAddress: 127.0.0.1:10249
     Mode: iptables
@@ -135,7 +129,6 @@ ComponentConfigs:
     MaxOpenFiles: 1000000
     MaxPods: 110
     NodeLeaseDurationSeconds: 40
-    NodeStatusReportFrequency: 1m0s
     NodeStatusUpdateFrequency: 10s
     OOMScoreAdj: -999
     PodCIDR: ""
@@ -166,28 +159,19 @@ ComponentConfigs:
     TLSPrivateKeyFile: ""
     VolumeStatsAggPeriod: 1m0s
 ControlPlaneEndpoint: ""
-ControllerManager:
-  ExtraArgs: null
-  ExtraVolumes: null
-DNS:
-  ImageRepository: ""
-  ImageTag: ""
-  Type: CoreDNS
+ControllerManagerExtraArgs: null
+ControllerManagerExtraVolumes: null
 Etcd:
   External: null
   Local:
     DataDir: /var/lib/etcd
     ExtraArgs: null
-    ImageRepository: ""
-    ImageTag: ""
+    Image: ""
     PeerCertSANs: null
     ServerCertSANs: null
 FeatureGates: null
 ImageRepository: k8s.gcr.io
-KubernetesVersion: v1.12.2
-LocalAPIEndpoint:
-  AdvertiseAddress: 192.168.2.2
-  BindPort: 6443
+KubernetesVersion: v1.11.2
 Networking:
   DNSDomain: cluster.local
   PodSubnet: ""
@@ -199,7 +183,6 @@ NodeRegistration:
   Taints:
   - effect: NoSchedule
     key: node-role.kubernetes.io/master
-Scheduler:
-  ExtraArgs: null
-  ExtraVolumes: null
-UseHyperKubeImage: true
+SchedulerExtraArgs: null
+SchedulerExtraVolumes: null
+UnifiedControlPlaneImage: ""

@@ -1269,7 +1269,9 @@ func testScalingUsingScaleSubresource(t *testing.T, tester *deploymentTester, re
 	if err != nil {
 		t.Fatalf("Failed to obtain deployment %q: %v", deploymentName, err)
 	}
-	scale, err := tester.c.AppsV1().Deployments(ns).GetScale(deploymentName, metav1.GetOptions{})
+	kind := "Deployment"
+	scaleClient := tester.c.ExtensionsV1beta1().Scales(ns)
+	scale, err := scaleClient.Get(kind, deploymentName)
 	if err != nil {
 		t.Fatalf("Failed to obtain scale subresource for deployment %q: %v", deploymentName, err)
 	}
@@ -1278,12 +1280,12 @@ func testScalingUsingScaleSubresource(t *testing.T, tester *deploymentTester, re
 	}
 
 	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
-		scale, err := tester.c.AppsV1().Deployments(ns).GetScale(deploymentName, metav1.GetOptions{})
+		scale, err := scaleClient.Get(kind, deploymentName)
 		if err != nil {
 			return err
 		}
 		scale.Spec.Replicas = replicas
-		_, err = tester.c.AppsV1().Deployments(ns).UpdateScale(deploymentName, scale)
+		_, err = scaleClient.Update(kind, scale)
 		return err
 	}); err != nil {
 		t.Fatalf("Failed to set .Spec.Replicas of scale subresource for deployment %q: %v", deploymentName, err)

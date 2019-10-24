@@ -26,7 +26,6 @@ go_library(
     srcs = [
         "clusterrole_interfaces.go",
         "clusterrolebinding_interfaces.go",
-        "namespace.go",
         "reconcile_role.go",
         "reconcile_rolebindings.go",
         "role_interfaces.go",
@@ -43,7 +42,6 @@ go_library(
         "//staging/src/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
         "//staging/src/k8s.io/apimachinery/pkg/runtime:go_default_library",
         "//staging/src/k8s.io/apimachinery/pkg/types:go_default_library",
-        "//staging/src/k8s.io/apimachinery/pkg/util/errors:go_default_library",
         "//staging/src/k8s.io/client-go/kubernetes/typed/core/v1:go_default_library",
         "//staging/src/k8s.io/client-go/kubernetes/typed/rbac/v1:go_default_library",
     ],

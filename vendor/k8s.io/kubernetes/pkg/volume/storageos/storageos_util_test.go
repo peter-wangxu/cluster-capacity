@@ -30,7 +30,7 @@ import (
 	"testing"
 )
 
-var testAPISecretName = "storageos-api"
+var testApiSecretName = "storageos-api"
 var testVolName = "storageos-test-vol"
 var testPVName = "storageos-test-pv"
 var testNamespace = "storageos-test-namespace"
@@ -133,8 +133,8 @@ func TestCreateVolume(t *testing.T) {
 	}
 
 	options := volume.VolumeOptions{
-		PVName:                        testPVName,
-		PVC:                           volumetest.CreateTestPVC(fmt.Sprintf("%dGi", testSize), []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}),
+		PVName: testPVName,
+		PVC:    volumetest.CreateTestPVC(fmt.Sprintf("%dGi", testSize), []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}),
 		PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimDelete,
 	}
 

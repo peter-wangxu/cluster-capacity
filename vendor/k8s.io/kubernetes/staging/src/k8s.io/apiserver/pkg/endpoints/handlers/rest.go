@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -42,7 +42,6 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/metrics"
 	"k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-	utiltrace "k8s.io/apiserver/pkg/util/trace"
 	openapiproto "k8s.io/kube-openapi/pkg/util/proto"
 )
 
@@ -59,19 +58,15 @@ type RequestScope struct {
 	Typer           runtime.ObjectTyper
 	UnsafeConvertor runtime.ObjectConvertor
 	Authorizer      authorizer.Authorizer
-	Trace           *utiltrace.Trace
 
 	TableConvertor rest.TableConvertor
-	OpenAPIModels  openapiproto.Models
+	OpenAPISchema  openapiproto.Schema
 
 	Resource    schema.GroupVersionResource
 	Kind        schema.GroupVersionKind
 	Subresource string
 
 	MetaGroupVersion schema.GroupVersion
-
-	// HubGroupVersion indicates what version objects read from etcd or incoming requests should be converted to for in-memory handling.
-	HubGroupVersion schema.GroupVersion
 
 	MaxRequestBodyBytes int64
 }
@@ -295,7 +290,7 @@ func setListSelfLink(obj runtime.Object, ctx context.Context, req *http.Request,
 		return 0, err
 	}
 	if err := namer.SetSelfLink(obj, uri); err != nil {
-		klog.V(4).Infof("Unable to set self link on object: %v", err)
+		glog.V(4).Infof("Unable to set self link on object: %v", err)
 	}
 	requestInfo, ok := request.RequestInfoFrom(ctx)
 	if !ok {
@@ -352,7 +347,7 @@ func parseTimeout(str string) time.Duration {
 		if err == nil {
 			return timeout
 		}
-		klog.Errorf("Failed to parse %q: %v", str, err)
+		glog.Errorf("Failed to parse %q: %v", str, err)
 	}
 	return 30 * time.Second
 }

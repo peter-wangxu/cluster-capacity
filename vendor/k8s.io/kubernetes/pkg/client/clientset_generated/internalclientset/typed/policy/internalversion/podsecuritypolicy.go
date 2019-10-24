@@ -19,8 +19,6 @@ limitations under the License.
 package internalversion
 
 import (
-	"time"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -74,15 +72,10 @@ func (c *podSecurityPolicies) Get(name string, options v1.GetOptions) (result *p
 
 // List takes label and field selectors, and returns the list of PodSecurityPolicies that match those selectors.
 func (c *podSecurityPolicies) List(opts v1.ListOptions) (result *policy.PodSecurityPolicyList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
 	result = &policy.PodSecurityPolicyList{}
 	err = c.client.Get().
 		Resource("podsecuritypolicies").
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
 		Do().
 		Into(result)
 	return
@@ -90,15 +83,10 @@ func (c *podSecurityPolicies) List(opts v1.ListOptions) (result *policy.PodSecur
 
 // Watch returns a watch.Interface that watches the requested podSecurityPolicies.
 func (c *podSecurityPolicies) Watch(opts v1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
 	opts.Watch = true
 	return c.client.Get().
 		Resource("podsecuritypolicies").
 		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
 		Watch()
 }
 
@@ -137,14 +125,9 @@ func (c *podSecurityPolicies) Delete(name string, options *v1.DeleteOptions) err
 
 // DeleteCollection deletes a collection of objects.
 func (c *podSecurityPolicies) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
-	var timeout time.Duration
-	if listOptions.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
-	}
 	return c.client.Delete().
 		Resource("podsecuritypolicies").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
-		Timeout(timeout).
 		Body(options).
 		Do().
 		Error()

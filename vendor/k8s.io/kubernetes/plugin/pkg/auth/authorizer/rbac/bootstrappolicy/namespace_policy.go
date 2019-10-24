@@ -19,7 +19,7 @@ package bootstrappolicy
 import (
 	"strings"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,13 +36,13 @@ var (
 
 func addNamespaceRole(namespace string, role rbacv1.Role) {
 	if !strings.HasPrefix(namespace, "kube-") {
-		klog.Fatalf(`roles can only be bootstrapped into reserved namespaces starting with "kube-", not %q`, namespace)
+		glog.Fatalf(`roles can only be bootstrapped into reserved namespaces starting with "kube-", not %q`, namespace)
 	}
 
 	existingRoles := namespaceRoles[namespace]
 	for _, existingRole := range existingRoles {
 		if role.Name == existingRole.Name {
-			klog.Fatalf("role %q was already registered in %q", role.Name, namespace)
+			glog.Fatalf("role %q was already registered in %q", role.Name, namespace)
 		}
 	}
 
@@ -54,13 +54,13 @@ func addNamespaceRole(namespace string, role rbacv1.Role) {
 
 func addNamespaceRoleBinding(namespace string, roleBinding rbacv1.RoleBinding) {
 	if !strings.HasPrefix(namespace, "kube-") {
-		klog.Fatalf(`rolebindings can only be bootstrapped into reserved namespaces starting with "kube-", not %q`, namespace)
+		glog.Fatalf(`rolebindings can only be bootstrapped into reserved namespaces starting with "kube-", not %q`, namespace)
 	}
 
 	existingRoleBindings := namespaceRoleBindings[namespace]
 	for _, existingRoleBinding := range existingRoleBindings {
 		if roleBinding.Name == existingRoleBinding.Name {
-			klog.Fatalf("rolebinding %q was already registered in %q", roleBinding.Name, namespace)
+			glog.Fatalf("rolebinding %q was already registered in %q", roleBinding.Name, namespace)
 		}
 	}
 

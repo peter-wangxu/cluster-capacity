@@ -23,7 +23,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -42,7 +42,6 @@ import (
 	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 	"k8s.io/kubernetes/pkg/scheduler/algorithm"
 	priorityutil "k8s.io/kubernetes/pkg/scheduler/algorithm/priorities/util"
-	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	schedulercache "k8s.io/kubernetes/pkg/scheduler/cache"
 	schedutil "k8s.io/kubernetes/pkg/scheduler/util"
 	"k8s.io/kubernetes/pkg/scheduler/volumebinder"
@@ -329,7 +328,7 @@ func NewMaxPDVolumeCountPredicate(
 		filter = AzureDiskVolumeFilter
 		volumeLimitKey = v1.ResourceName(volumeutil.AzureVolumeLimitKey)
 	default:
-		klog.Fatalf("Wrong filterName, Only Support %v %v %v ", EBSVolumeFilterType,
+		glog.Fatalf("Wrong filterName, Only Support %v %v %v ", EBSVolumeFilterType,
 			GCEPDVolumeFilterType, AzureDiskVolumeFilterType)
 		return nil
 
@@ -383,9 +382,9 @@ func getMaxEBSVolume(nodeInstanceType string) int {
 func getMaxVolLimitFromEnv() int {
 	if rawMaxVols := os.Getenv(KubeMaxPDVols); rawMaxVols != "" {
 		if parsedMaxVols, err := strconv.Atoi(rawMaxVols); err != nil {
-			klog.Errorf("Unable to parse maximum PD volumes value, using default: %v", err)
+			glog.Errorf("Unable to parse maximum PD volumes value, using default: %v", err)
 		} else if parsedMaxVols <= 0 {
-			klog.Errorf("Maximum PD volumes must be a positive value, using default ")
+			glog.Errorf("Maximum PD volumes must be a positive value, using default ")
 		} else {
 			return parsedMaxVols
 		}
@@ -413,7 +412,7 @@ func (c *MaxPDVolumeCountChecker) filterVolumes(volumes []v1.Volume, namespace s
 			pvc, err := c.pvcInfo.GetPersistentVolumeClaimInfo(namespace, pvcName)
 			if err != nil || pvc == nil {
 				// if the PVC is not found, log the error and count the PV towards the PV limit
-				klog.V(4).Infof("Unable to look up PVC info for %s/%s, assuming PVC matches predicate when counting limits: %v", namespace, pvcName, err)
+				glog.V(4).Infof("Unable to look up PVC info for %s/%s, assuming PVC matches predicate when counting limits: %v", namespace, pvcName, err)
 				filteredVolumes[pvID] = true
 				continue
 			}
@@ -424,7 +423,7 @@ func (c *MaxPDVolumeCountChecker) filterVolumes(volumes []v1.Volume, namespace s
 				// it was forcefully unbound by admin. The pod can still use the
 				// original PV where it was bound to -> log the error and count
 				// the PV towards the PV limit
-				klog.V(4).Infof("PVC %s/%s is not bound, assuming PVC matches predicate when counting limits", namespace, pvcName)
+				glog.V(4).Infof("PVC %s/%s is not bound, assuming PVC matches predicate when counting limits", namespace, pvcName)
 				filteredVolumes[pvID] = true
 				continue
 			}
@@ -433,7 +432,7 @@ func (c *MaxPDVolumeCountChecker) filterVolumes(volumes []v1.Volume, namespace s
 			if err != nil || pv == nil {
 				// if the PV is not found, log the error
 				// and count the PV towards the PV limit
-				klog.V(4).Infof("Unable to look up PV info for %s/%s/%s, assuming PV matches predicate when counting limits: %v", namespace, pvcName, pvName, err)
+				glog.V(4).Infof("Unable to look up PV info for %s/%s/%s, assuming PV matches predicate when counting limits: %v", namespace, pvcName, pvName, err)
 				filteredVolumes[pvID] = true
 				continue
 			}
@@ -665,12 +664,12 @@ func (c *VolumeZoneChecker) predicate(pod *v1.Pod, meta algorithm.PredicateMetad
 				nodeV, _ := nodeConstraints[k]
 				volumeVSet, err := volumeutil.LabelZonesToSet(v)
 				if err != nil {
-					klog.Warningf("Failed to parse label for %q: %q. Ignoring the label. err=%v. ", k, v, err)
+					glog.Warningf("Failed to parse label for %q: %q. Ignoring the label. err=%v. ", k, v, err)
 					continue
 				}
 
 				if !volumeVSet.Has(nodeV) {
-					klog.V(10).Infof("Won't schedule pod %q onto node %q due to volume %q (mismatch on %q)", pod.Name, node.Name, pvName, k)
+					glog.V(10).Infof("Won't schedule pod %q onto node %q due to volume %q (mismatch on %q)", pod.Name, node.Name, pvName, k)
 					return false, []algorithm.PredicateFailureReason{ErrVolumeZoneConflict}, nil
 				}
 			}
@@ -781,11 +780,11 @@ func PodFitsResources(pod *v1.Pod, meta algorithm.PredicateMetadata, nodeInfo *s
 		}
 	}
 
-	if klog.V(10) {
+	if glog.V(10) {
 		if len(predicateFails) == 0 {
-			// We explicitly don't do klog.V(10).Infof() to avoid computing all the parameters if this is
+			// We explicitly don't do glog.V(10).Infof() to avoid computing all the parameters if this is
 			// not logged. There is visible performance gain from it.
-			klog.Infof("Schedule Pod %+v on Node %+v is allowed, Node is running only %v out of %v Pods.",
+			glog.Infof("Schedule Pod %+v on Node %+v is allowed, Node is running only %v out of %v Pods.",
 				podName(pod), node.Name, len(nodeInfo.Pods()), allowedPodNumber)
 		}
 	}
@@ -834,14 +833,14 @@ func podMatchesNodeSelectorAndAffinityTerms(pod *v1.Pod, node *v1.Node) bool {
 		// TODO: Uncomment this block when implement RequiredDuringSchedulingRequiredDuringExecution.
 		// if nodeAffinity.RequiredDuringSchedulingRequiredDuringExecution != nil {
 		// 	nodeSelectorTerms := nodeAffinity.RequiredDuringSchedulingRequiredDuringExecution.NodeSelectorTerms
-		// 	klog.V(10).Infof("Match for RequiredDuringSchedulingRequiredDuringExecution node selector terms %+v", nodeSelectorTerms)
+		// 	glog.V(10).Infof("Match for RequiredDuringSchedulingRequiredDuringExecution node selector terms %+v", nodeSelectorTerms)
 		// 	nodeAffinityMatches = nodeMatchesNodeSelectorTerms(node, nodeSelectorTerms)
 		// }
 
 		// Match node selector for requiredDuringSchedulingIgnoredDuringExecution.
 		if nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution != nil {
 			nodeSelectorTerms := nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms
-			klog.V(10).Infof("Match for RequiredDuringSchedulingIgnoredDuringExecution node selector terms %+v", nodeSelectorTerms)
+			glog.V(10).Infof("Match for RequiredDuringSchedulingIgnoredDuringExecution node selector terms %+v", nodeSelectorTerms)
 			nodeAffinityMatches = nodeAffinityMatches && nodeMatchesNodeSelectorTerms(node, nodeSelectorTerms)
 		}
 
@@ -933,7 +932,7 @@ type ServiceAffinity struct {
 // only should be referenced by NewServiceAffinityPredicate.
 func (s *ServiceAffinity) serviceAffinityMetadataProducer(pm *predicateMetadata) {
 	if pm.pod == nil {
-		klog.Errorf("Cannot precompute service affinity, a pod is required to calculate service affinity.")
+		glog.Errorf("Cannot precompute service affinity, a pod is required to calculate service affinity.")
 		return
 	}
 	pm.serviceAffinityInUse = true
@@ -945,7 +944,7 @@ func (s *ServiceAffinity) serviceAffinityMetadataProducer(pm *predicateMetadata)
 
 	// In the future maybe we will return them as part of the function.
 	if errSvc != nil || errList != nil {
-		klog.Errorf("Some Error were found while precomputing svc affinity: \nservices:%v , \npods:%v", errSvc, errList)
+		glog.Errorf("Some Error were found while precomputing svc affinity: \nservices:%v , \npods:%v", errSvc, errList)
 	}
 	// consider only the pods that belong to the same namespace
 	pm.serviceAffinityMatchingPodList = FilterPodsByNamespace(allMatches, pm.pod.Namespace)
@@ -1172,10 +1171,10 @@ func (c *PodAffinityChecker) InterPodAffinityMatches(pod *v1.Pod, meta algorithm
 		return false, failedPredicates, error
 	}
 
-	if klog.V(10) {
-		// We explicitly don't do klog.V(10).Infof() to avoid computing all the parameters if this is
+	if glog.V(10) {
+		// We explicitly don't do glog.V(10).Infof() to avoid computing all the parameters if this is
 		// not logged. There is visible performance gain from it.
-		klog.Infof("Schedule Pod %+v on Node %+v is allowed, pod (anti)affinity constraints satisfied",
+		glog.Infof("Schedule Pod %+v on Node %+v is allowed, pod (anti)affinity constraints satisfied",
 			podName(pod), node.Name)
 	}
 	return true, nil, nil
@@ -1274,7 +1273,7 @@ func (c *PodAffinityChecker) getMatchingAntiAffinityTopologyPairsOfPods(pod *v1.
 		existingPodNode, err := c.info.GetNodeInfo(existingPod.Spec.NodeName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
-				klog.Errorf("Node not found, %v", existingPod.Spec.NodeName)
+				glog.Errorf("Node not found, %v", existingPod.Spec.NodeName)
 				continue
 			}
 			return nil, err
@@ -1304,12 +1303,12 @@ func (c *PodAffinityChecker) satisfiesExistingPodsAntiAffinity(pod *v1.Pod, meta
 		filteredPods, err := c.podLister.FilteredList(nodeInfo.Filter, labels.Everything())
 		if err != nil {
 			errMessage := fmt.Sprintf("Failed to get all pods, %+v", err)
-			klog.Error(errMessage)
+			glog.Error(errMessage)
 			return ErrExistingPodsAntiAffinityRulesNotMatch, errors.New(errMessage)
 		}
 		if topologyMaps, err = c.getMatchingAntiAffinityTopologyPairsOfPods(pod, filteredPods); err != nil {
 			errMessage := fmt.Sprintf("Failed to get all terms that pod %+v matches, err: %+v", podName(pod), err)
-			klog.Error(errMessage)
+			glog.Error(errMessage)
 			return ErrExistingPodsAntiAffinityRulesNotMatch, errors.New(errMessage)
 		}
 	}
@@ -1318,14 +1317,14 @@ func (c *PodAffinityChecker) satisfiesExistingPodsAntiAffinity(pod *v1.Pod, meta
 	// the scheduled pod anti-affinity terms
 	for topologyKey, topologyValue := range node.Labels {
 		if topologyMaps.topologyPairToPods[topologyPair{key: topologyKey, value: topologyValue}] != nil {
-			klog.V(10).Infof("Cannot schedule pod %+v onto node %v", podName(pod), node.Name)
+			glog.V(10).Infof("Cannot schedule pod %+v onto node %v", podName(pod), node.Name)
 			return ErrExistingPodsAntiAffinityRulesNotMatch, nil
 		}
 	}
-	if klog.V(10) {
-		// We explicitly don't do klog.V(10).Infof() to avoid computing all the parameters if this is
+	if glog.V(10) {
+		// We explicitly don't do glog.V(10).Infof() to avoid computing all the parameters if this is
 		// not logged. There is visible performance gain from it.
-		klog.Infof("Schedule Pod %+v on Node %+v is allowed, existing pods anti-affinity terms satisfied.",
+		glog.Infof("Schedule Pod %+v on Node %+v is allowed, existing pods anti-affinity terms satisfied.",
 			podName(pod), node.Name)
 	}
 	return nil, nil
@@ -1382,7 +1381,7 @@ func (c *PodAffinityChecker) satisfiesPodsAffinityAntiAffinity(pod *v1.Pod,
 				// in the cluster matches the namespace and selector of this pod and the pod matches
 				// its own terms, then we allow the pod to pass the affinity check.
 				if !(len(topologyPairsPotentialAffinityPods.topologyPairToPods) == 0 && targetPodMatchesAffinityOfPod(pod, pod)) {
-					klog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAffinity",
+					glog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAffinity",
 						podName(pod), node.Name)
 					return ErrPodAffinityRulesNotMatch, nil
 				}
@@ -1394,7 +1393,7 @@ func (c *PodAffinityChecker) satisfiesPodsAffinityAntiAffinity(pod *v1.Pod,
 		if antiAffinityTerms := GetPodAntiAffinityTerms(affinity.PodAntiAffinity); len(antiAffinityTerms) > 0 {
 			matchExists := c.nodeMatchesAnyTopologyTerm(pod, topologyPairsPotentialAntiAffinityPods, nodeInfo, antiAffinityTerms)
 			if matchExists {
-				klog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAntiAffinity",
+				glog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAntiAffinity",
 					podName(pod), node.Name)
 				return ErrPodAntiAffinityRulesNotMatch, nil
 			}
@@ -1414,7 +1413,7 @@ func (c *PodAffinityChecker) satisfiesPodsAffinityAntiAffinity(pod *v1.Pod,
 				affTermsMatch, termsSelectorMatch, err := c.podMatchesPodAffinityTerms(pod, targetPod, nodeInfo, affinityTerms)
 				if err != nil {
 					errMessage := fmt.Sprintf("Cannot schedule pod %+v onto node %v, because of PodAffinity, err: %v", podName(pod), node.Name, err)
-					klog.Error(errMessage)
+					glog.Error(errMessage)
 					return ErrPodAffinityRulesNotMatch, errors.New(errMessage)
 				}
 				if termsSelectorMatch {
@@ -1429,7 +1428,7 @@ func (c *PodAffinityChecker) satisfiesPodsAffinityAntiAffinity(pod *v1.Pod,
 			if len(antiAffinityTerms) > 0 {
 				antiAffTermsMatch, _, err := c.podMatchesPodAffinityTerms(pod, targetPod, nodeInfo, antiAffinityTerms)
 				if err != nil || antiAffTermsMatch {
-					klog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAntiAffinityTerm, err: %v",
+					glog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAntiAffinityTerm, err: %v",
 						podName(pod), node.Name, err)
 					return ErrPodAntiAffinityRulesNotMatch, nil
 				}
@@ -1443,23 +1442,23 @@ func (c *PodAffinityChecker) satisfiesPodsAffinityAntiAffinity(pod *v1.Pod,
 			// in the cluster matches the namespace and selector of this pod and the pod matches
 			// its own terms, then we allow the pod to pass the affinity check.
 			if termsSelectorMatchFound {
-				klog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAffinity",
+				glog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAffinity",
 					podName(pod), node.Name)
 				return ErrPodAffinityRulesNotMatch, nil
 			}
 			// Check if pod matches its own affinity properties (namespace and label selector).
 			if !targetPodMatchesAffinityOfPod(pod, pod) {
-				klog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAffinity",
+				glog.V(10).Infof("Cannot schedule pod %+v onto node %v, because of PodAffinity",
 					podName(pod), node.Name)
 				return ErrPodAffinityRulesNotMatch, nil
 			}
 		}
 	}
 
-	if klog.V(10) {
-		// We explicitly don't do klog.V(10).Infof() to avoid computing all the parameters if this is
+	if glog.V(10) {
+		// We explicitly don't do glog.V(10).Infof() to avoid computing all the parameters if this is
 		// not logged. There is visible performance gain from it.
-		klog.Infof("Schedule Pod %+v on Node %+v is allowed, pod affinity/anti-affinity constraints satisfied.",
+		glog.Infof("Schedule Pod %+v on Node %+v is allowed, pod affinity/anti-affinity constraints satisfied.",
 			podName(pod), node.Name)
 	}
 	return nil, nil
@@ -1473,7 +1472,7 @@ func CheckNodeUnschedulablePredicate(pod *v1.Pod, meta algorithm.PredicateMetada
 
 	// If pod tolerate unschedulable taint, it's also tolerate `node.Spec.Unschedulable`.
 	podToleratesUnschedulable := v1helper.TolerationsTolerateTaint(pod.Spec.Tolerations, &v1.Taint{
-		Key:    schedulerapi.TaintNodeUnschedulable,
+		Key:    algorithm.TaintNodeUnschedulable,
 		Effect: v1.TaintEffectNoSchedule,
 	})
 
@@ -1634,12 +1633,12 @@ func (c *VolumeBindingChecker) predicate(pod *v1.Pod, meta algorithm.PredicateMe
 
 	failReasons := []algorithm.PredicateFailureReason{}
 	if !boundSatisfied {
-		klog.V(5).Infof("Bound PVs not satisfied for pod %v/%v, node %q", pod.Namespace, pod.Name, node.Name)
+		glog.V(5).Infof("Bound PVs not satisfied for pod %v/%v, node %q", pod.Namespace, pod.Name, node.Name)
 		failReasons = append(failReasons, ErrVolumeNodeConflict)
 	}
 
 	if !unboundSatisfied {
-		klog.V(5).Infof("Couldn't find matching PVs for pod %v/%v, node %q", pod.Namespace, pod.Name, node.Name)
+		glog.V(5).Infof("Couldn't find matching PVs for pod %v/%v, node %q", pod.Namespace, pod.Name, node.Name)
 		failReasons = append(failReasons, ErrVolumeBindConflict)
 	}
 
@@ -1648,6 +1647,6 @@ func (c *VolumeBindingChecker) predicate(pod *v1.Pod, meta algorithm.PredicateMe
 	}
 
 	// All volumes bound or matching PVs found for all unbound PVCs
-	klog.V(5).Infof("All PVCs found matches for pod %v/%v, node %q", pod.Namespace, pod.Name, node.Name)
+	glog.V(5).Infof("All PVCs found matches for pod %v/%v, node %q", pod.Namespace, pod.Name, node.Name)
 	return true, nil, nil
 }

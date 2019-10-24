@@ -27,13 +27,10 @@ import (
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/kubernetes/pkg/apis/scheduling"
-	"k8s.io/kubernetes/pkg/printers"
-	printersinternal "k8s.io/kubernetes/pkg/printers/internalversion"
-	printerstorage "k8s.io/kubernetes/pkg/printers/storage"
 	"k8s.io/kubernetes/pkg/registry/scheduling/priorityclass"
 )
 
-// REST implements a RESTStorage for priority classes against etcd
+// rest implements a RESTStorage for priority classes against etcd
 type REST struct {
 	*genericregistry.Store
 }
@@ -48,8 +45,6 @@ func NewREST(optsGetter generic.RESTOptionsGetter) *REST {
 		CreateStrategy: priorityclass.Strategy,
 		UpdateStrategy: priorityclass.Strategy,
 		DeleteStrategy: priorityclass.Strategy,
-
-		TableConvertor: printerstorage.TableConvertor{TablePrinter: printers.NewTablePrinter().With(printersinternal.AddHandlers)},
 	}
 	options := &generic.StoreOptions{RESTOptions: optsGetter}
 	if err := store.CompleteWithOptions(options); err != nil {

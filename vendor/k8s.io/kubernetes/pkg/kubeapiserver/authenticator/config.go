@@ -38,15 +38,14 @@ import (
 	"k8s.io/apiserver/plugin/pkg/authenticator/request/basicauth"
 	"k8s.io/apiserver/plugin/pkg/authenticator/token/oidc"
 	"k8s.io/apiserver/plugin/pkg/authenticator/token/webhook"
-	// Initialize all known client auth plugins.
-	_ "k8s.io/client-go/plugin/pkg/client/auth"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/serviceaccount"
+
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
 
-// Config contains the data on how to authenticate a request to the Kube API Server
-type Config struct {
+type AuthenticatorConfig struct {
 	Anonymous                   bool
 	BasicAuthFile               string
 	BootstrapToken              bool
@@ -64,7 +63,7 @@ type Config struct {
 	ServiceAccountKeyFiles      []string
 	ServiceAccountLookup        bool
 	ServiceAccountIssuer        string
-	APIAudiences                authenticator.Audiences
+	ServiceAccountAPIAudiences  []string
 	WebhookTokenAuthnConfigFile string
 	WebhookTokenAuthnCacheTTL   time.Duration
 
@@ -80,7 +79,7 @@ type Config struct {
 
 // New returns an authenticator.Request or an error that supports the standard
 // Kubernetes authentication mechanisms.
-func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, error) {
+func (config AuthenticatorConfig) New() (authenticator.Request, *spec.SecurityDefinitions, error) {
 	var authenticators []authenticator.Request
 	var tokenAuthenticators []authenticator.Token
 	securityDefinitions := spec.SecurityDefinitions{}
@@ -98,7 +97,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		if err != nil {
 			return nil, nil, err
 		}
-		authenticators = append(authenticators, authenticator.WrapAudienceAgnosticRequest(config.APIAudiences, requestHeaderAuthenticator))
+		authenticators = append(authenticators, requestHeaderAuthenticator)
 	}
 
 	// basic auth
@@ -107,7 +106,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		if err != nil {
 			return nil, nil, err
 		}
-		authenticators = append(authenticators, authenticator.WrapAudienceAgnosticRequest(config.APIAudiences, basicAuth))
+		authenticators = append(authenticators, basicAuth)
 
 		securityDefinitions["HTTPBasic"] = &spec.SecurityScheme{
 			SecuritySchemeProps: spec.SecuritySchemeProps{
@@ -132,17 +131,17 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		if err != nil {
 			return nil, nil, err
 		}
-		tokenAuthenticators = append(tokenAuthenticators, authenticator.WrapAudienceAgnosticToken(config.APIAudiences, tokenAuth))
+		tokenAuthenticators = append(tokenAuthenticators, tokenAuth)
 	}
 	if len(config.ServiceAccountKeyFiles) > 0 {
-		serviceAccountAuth, err := newLegacyServiceAccountAuthenticator(config.ServiceAccountKeyFiles, config.ServiceAccountLookup, config.APIAudiences, config.ServiceAccountTokenGetter)
+		serviceAccountAuth, err := newLegacyServiceAccountAuthenticator(config.ServiceAccountKeyFiles, config.ServiceAccountLookup, config.ServiceAccountTokenGetter)
 		if err != nil {
 			return nil, nil, err
 		}
 		tokenAuthenticators = append(tokenAuthenticators, serviceAccountAuth)
 	}
 	if utilfeature.DefaultFeatureGate.Enabled(features.TokenRequest) && config.ServiceAccountIssuer != "" {
-		serviceAccountAuth, err := newServiceAccountAuthenticator(config.ServiceAccountIssuer, config.ServiceAccountKeyFiles, config.APIAudiences, config.ServiceAccountTokenGetter)
+		serviceAccountAuth, err := newServiceAccountAuthenticator(config.ServiceAccountIssuer, config.ServiceAccountAPIAudiences, config.ServiceAccountKeyFiles, config.ServiceAccountTokenGetter)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -151,7 +150,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 	if config.BootstrapToken {
 		if config.BootstrapTokenAuthenticator != nil {
 			// TODO: This can sometimes be nil because of
-			tokenAuthenticators = append(tokenAuthenticators, authenticator.WrapAudienceAgnosticToken(config.APIAudiences, config.BootstrapTokenAuthenticator))
+			tokenAuthenticators = append(tokenAuthenticators, config.BootstrapTokenAuthenticator)
 		}
 	}
 	// NOTE(ericchiang): Keep the OpenID Connect after Service Accounts.
@@ -161,25 +160,14 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 	// simply returns an error, the OpenID Connect plugin may query the provider to
 	// update the keys, causing performance hits.
 	if len(config.OIDCIssuerURL) > 0 && len(config.OIDCClientID) > 0 {
-		oidcAuth, err := newAuthenticatorFromOIDCIssuerURL(oidc.Options{
-			IssuerURL:            config.OIDCIssuerURL,
-			ClientID:             config.OIDCClientID,
-			APIAudiences:         config.APIAudiences,
-			CAFile:               config.OIDCCAFile,
-			UsernameClaim:        config.OIDCUsernameClaim,
-			UsernamePrefix:       config.OIDCUsernamePrefix,
-			GroupsClaim:          config.OIDCGroupsClaim,
-			GroupsPrefix:         config.OIDCGroupsPrefix,
-			SupportedSigningAlgs: config.OIDCSigningAlgs,
-			RequiredClaims:       config.OIDCRequiredClaims,
-		})
+		oidcAuth, err := newAuthenticatorFromOIDCIssuerURL(config.OIDCIssuerURL, config.OIDCClientID, config.OIDCCAFile, config.OIDCUsernameClaim, config.OIDCUsernamePrefix, config.OIDCGroupsClaim, config.OIDCGroupsPrefix, config.OIDCSigningAlgs, config.OIDCRequiredClaims)
 		if err != nil {
 			return nil, nil, err
 		}
 		tokenAuthenticators = append(tokenAuthenticators, oidcAuth)
 	}
 	if len(config.WebhookTokenAuthnConfigFile) > 0 {
-		webhookTokenAuth, err := newWebhookTokenAuthenticator(config.WebhookTokenAuthnConfigFile, config.WebhookTokenAuthnCacheTTL, config.APIAudiences)
+		webhookTokenAuth, err := newWebhookTokenAuthenticator(config.WebhookTokenAuthnConfigFile, config.WebhookTokenAuthnCacheTTL)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -191,7 +179,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		tokenAuth := tokenunion.New(tokenAuthenticators...)
 		// Optionally cache authentication results
 		if config.TokenSuccessCacheTTL > 0 || config.TokenFailureCacheTTL > 0 {
-			tokenAuth = tokencache.New(tokenAuth, true, config.TokenSuccessCacheTTL, config.TokenFailureCacheTTL)
+			tokenAuth = tokencache.New(tokenAuth, config.TokenSuccessCacheTTL, config.TokenFailureCacheTTL)
 		}
 		authenticators = append(authenticators, bearertoken.New(tokenAuth), websocket.NewProtocolAuthenticator(tokenAuth))
 		securityDefinitions["BearerToken"] = &spec.SecurityScheme{
@@ -251,23 +239,33 @@ func newAuthenticatorFromTokenFile(tokenAuthFile string) (authenticator.Token, e
 }
 
 // newAuthenticatorFromOIDCIssuerURL returns an authenticator.Token or an error.
-func newAuthenticatorFromOIDCIssuerURL(opts oidc.Options) (authenticator.Token, error) {
+func newAuthenticatorFromOIDCIssuerURL(issuerURL, clientID, caFile, usernameClaim, usernamePrefix, groupsClaim, groupsPrefix string, signingAlgs []string, requiredClaims map[string]string) (authenticator.Token, error) {
 	const noUsernamePrefix = "-"
 
-	if opts.UsernamePrefix == "" && opts.UsernameClaim != "email" {
+	if usernamePrefix == "" && usernameClaim != "email" {
 		// Old behavior. If a usernamePrefix isn't provided, prefix all claims other than "email"
 		// with the issuerURL.
 		//
 		// See https://github.com/kubernetes/kubernetes/issues/31380
-		opts.UsernamePrefix = opts.IssuerURL + "#"
+		usernamePrefix = issuerURL + "#"
 	}
 
-	if opts.UsernamePrefix == noUsernamePrefix {
+	if usernamePrefix == noUsernamePrefix {
 		// Special value indicating usernames shouldn't be prefixed.
-		opts.UsernamePrefix = ""
+		usernamePrefix = ""
 	}
 
-	tokenAuthenticator, err := oidc.New(opts)
+	tokenAuthenticator, err := oidc.New(oidc.Options{
+		IssuerURL:            issuerURL,
+		ClientID:             clientID,
+		CAFile:               caFile,
+		UsernameClaim:        usernameClaim,
+		UsernamePrefix:       usernamePrefix,
+		GroupsClaim:          groupsClaim,
+		GroupsPrefix:         groupsPrefix,
+		SupportedSigningAlgs: signingAlgs,
+		RequiredClaims:       requiredClaims,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +274,7 @@ func newAuthenticatorFromOIDCIssuerURL(opts oidc.Options) (authenticator.Token, 
 }
 
 // newLegacyServiceAccountAuthenticator returns an authenticator.Token or an error
-func newLegacyServiceAccountAuthenticator(keyfiles []string, lookup bool, apiAudiences authenticator.Audiences, serviceAccountGetter serviceaccount.ServiceAccountTokenGetter) (authenticator.Token, error) {
+func newLegacyServiceAccountAuthenticator(keyfiles []string, lookup bool, serviceAccountGetter serviceaccount.ServiceAccountTokenGetter) (authenticator.Token, error) {
 	allPublicKeys := []interface{}{}
 	for _, keyfile := range keyfiles {
 		publicKeys, err := certutil.PublicKeysFromFile(keyfile)
@@ -286,12 +284,12 @@ func newLegacyServiceAccountAuthenticator(keyfiles []string, lookup bool, apiAud
 		allPublicKeys = append(allPublicKeys, publicKeys...)
 	}
 
-	tokenAuthenticator := serviceaccount.JWTTokenAuthenticator(serviceaccount.LegacyIssuer, allPublicKeys, apiAudiences, serviceaccount.NewLegacyValidator(lookup, serviceAccountGetter))
+	tokenAuthenticator := serviceaccount.JWTTokenAuthenticator(serviceaccount.LegacyIssuer, allPublicKeys, serviceaccount.NewLegacyValidator(lookup, serviceAccountGetter))
 	return tokenAuthenticator, nil
 }
 
 // newServiceAccountAuthenticator returns an authenticator.Token or an error
-func newServiceAccountAuthenticator(iss string, keyfiles []string, apiAudiences authenticator.Audiences, serviceAccountGetter serviceaccount.ServiceAccountTokenGetter) (authenticator.Token, error) {
+func newServiceAccountAuthenticator(iss string, audiences []string, keyfiles []string, serviceAccountGetter serviceaccount.ServiceAccountTokenGetter) (authenticator.Token, error) {
 	allPublicKeys := []interface{}{}
 	for _, keyfile := range keyfiles {
 		publicKeys, err := certutil.PublicKeysFromFile(keyfile)
@@ -301,7 +299,7 @@ func newServiceAccountAuthenticator(iss string, keyfiles []string, apiAudiences 
 		allPublicKeys = append(allPublicKeys, publicKeys...)
 	}
 
-	tokenAuthenticator := serviceaccount.JWTTokenAuthenticator(iss, allPublicKeys, apiAudiences, serviceaccount.NewValidator(serviceAccountGetter))
+	tokenAuthenticator := serviceaccount.JWTTokenAuthenticator(iss, allPublicKeys, serviceaccount.NewValidator(audiences, serviceAccountGetter))
 	return tokenAuthenticator, nil
 }
 
@@ -318,11 +316,11 @@ func newAuthenticatorFromClientCAFile(clientCAFile string) (authenticator.Reques
 	return x509.New(opts, x509.CommonNameUserConversion), nil
 }
 
-func newWebhookTokenAuthenticator(webhookConfigFile string, ttl time.Duration, implicitAuds authenticator.Audiences) (authenticator.Token, error) {
-	webhookTokenAuthenticator, err := webhook.New(webhookConfigFile, implicitAuds)
+func newWebhookTokenAuthenticator(webhookConfigFile string, ttl time.Duration) (authenticator.Token, error) {
+	webhookTokenAuthenticator, err := webhook.New(webhookConfigFile, ttl)
 	if err != nil {
 		return nil, err
 	}
 
-	return tokencache.New(webhookTokenAuthenticator, false, ttl, ttl), nil
+	return webhookTokenAuthenticator, nil
 }

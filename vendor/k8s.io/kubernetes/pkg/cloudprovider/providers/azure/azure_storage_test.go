@@ -19,7 +19,7 @@ package azure
 import (
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2018-07-01/storage"
+	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2017-10-01/storage"
 )
 
 func TestCreateFileShare(t *testing.T) {
@@ -30,7 +30,6 @@ func TestCreateFileShare(t *testing.T) {
 
 	name := "baz"
 	sku := "sku"
-	kind := "StorageV2"
 	location := "centralus"
 	value := "foo key"
 	bogus := "bogus"
@@ -39,7 +38,6 @@ func TestCreateFileShare(t *testing.T) {
 		name     string
 		acct     string
 		acctType string
-		acctKind string
 		loc      string
 		gb       int
 		accounts storage.AccountListResult
@@ -54,7 +52,6 @@ func TestCreateFileShare(t *testing.T) {
 			name:      "foo",
 			acct:      "bar",
 			acctType:  "type",
-			acctKind:  "StorageV2",
 			loc:       "eastus",
 			gb:        10,
 			expectErr: true,
@@ -63,7 +60,6 @@ func TestCreateFileShare(t *testing.T) {
 			name:      "foo",
 			acct:      "",
 			acctType:  "type",
-			acctKind:  "StorageV2",
 			loc:       "eastus",
 			gb:        10,
 			expectErr: true,
@@ -72,12 +68,11 @@ func TestCreateFileShare(t *testing.T) {
 			name:     "foo",
 			acct:     "",
 			acctType: sku,
-			acctKind: kind,
 			loc:      location,
 			gb:       10,
 			accounts: storage.AccountListResult{
 				Value: &[]storage.Account{
-					{Name: &name, Sku: &storage.Sku{Name: storage.SkuName(sku)}, Kind: storage.Kind(kind), Location: &location},
+					{Name: &name, Sku: &storage.Sku{Name: storage.SkuName(sku)}, Location: &location},
 				},
 			},
 			keys: storage.AccountListKeysResult{
@@ -92,7 +87,6 @@ func TestCreateFileShare(t *testing.T) {
 			name:     "foo",
 			acct:     "",
 			acctType: sku,
-			acctKind: kind,
 			loc:      location,
 			gb:       10,
 			accounts: storage.AccountListResult{
@@ -106,7 +100,6 @@ func TestCreateFileShare(t *testing.T) {
 			name:     "foo",
 			acct:     "",
 			acctType: sku,
-			acctKind: kind,
 			loc:      location,
 			gb:       10,
 			accounts: storage.AccountListResult{
@@ -123,7 +116,7 @@ func TestCreateFileShare(t *testing.T) {
 		fake.Keys = test.keys
 		fake.Err = test.err
 
-		account, key, err := cloud.CreateFileShare(test.name, test.acct, test.acctType, test.acctKind, "rg", test.loc, test.gb)
+		account, key, err := cloud.CreateFileShare(test.name, test.acct, test.acctType, "rg", test.loc, test.gb)
 		if test.expectErr && err == nil {
 			t.Errorf("unexpected non-error")
 			continue

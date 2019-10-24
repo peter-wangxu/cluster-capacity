@@ -19,7 +19,7 @@ limitations under the License.
 package util
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -30,11 +30,11 @@ import (
 // `rootfs`
 func Chroot(rootfs string) error {
 	if err := syscall.Chroot(rootfs); err != nil {
-		return errors.Wrapf(err, "unable to chroot to %s", rootfs)
+		return fmt.Errorf("unable to chroot to %s: %v", rootfs, err)
 	}
 	root := filepath.FromSlash("/")
 	if err := os.Chdir(root); err != nil {
-		return errors.Wrapf(err, "unable to chdir to %s", root)
+		return fmt.Errorf("unable to chdir to %s: %v", root, err)
 	}
 	return nil
 }

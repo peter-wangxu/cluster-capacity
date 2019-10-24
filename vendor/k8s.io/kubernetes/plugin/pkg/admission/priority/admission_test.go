@@ -17,36 +17,29 @@ limitations under the License.
 package priority
 
 import (
+	"fmt"
 	"testing"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
-	schedulingv1beta1 "k8s.io/api/scheduling/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/admission"
 	"k8s.io/apiserver/pkg/authentication/user"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	utilfeaturetesting "k8s.io/apiserver/pkg/util/feature/testing"
-	"k8s.io/client-go/informers"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/scheduling"
-	"k8s.io/kubernetes/pkg/apis/scheduling/v1beta1"
+	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
 	"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/features"
 )
 
-func addPriorityClasses(ctrl *priorityPlugin, priorityClasses []*scheduling.PriorityClass) error {
+func addPriorityClasses(ctrl *priorityPlugin, priorityClasses []*scheduling.PriorityClass) {
 	informerFactory := informers.NewSharedInformerFactory(nil, controller.NoResyncPeriodFunc())
-	ctrl.SetExternalKubeInformerFactory(informerFactory)
+	ctrl.SetInternalKubeInformerFactory(informerFactory)
 	// First add the existing classes to the cache.
 	for _, c := range priorityClasses {
-		s := &schedulingv1beta1.PriorityClass{}
-		if err := v1beta1.Convert_scheduling_PriorityClass_To_v1beta1_PriorityClass(c, s, nil); err != nil {
-			return err
-		}
-		informerFactory.Scheduling().V1beta1().PriorityClasses().Informer().GetStore().Add(s)
+		informerFactory.Scheduling().InternalVersion().PriorityClasses().Informer().GetStore().Add(c)
 	}
-	return nil
 }
 
 var defaultClass1 = &scheduling.PriorityClass{
@@ -138,13 +131,11 @@ func TestPriorityClassAdmission(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		klog.V(4).Infof("starting test %q", test.name)
+		glog.V(4).Infof("starting test %q", test.name)
 
 		ctrl := newPlugin()
 		// Add existing priority classes.
-		if err := addPriorityClasses(ctrl, test.existingClasses); err != nil {
-			t.Errorf("Test %q: unable to add object to informer: %v", test.name, err)
-		}
+		addPriorityClasses(ctrl, test.existingClasses)
 		// Now add the new class.
 		attrs := admission.NewAttributesRecord(
 			test.newClass,
@@ -159,7 +150,7 @@ func TestPriorityClassAdmission(t *testing.T) {
 			test.userInfo,
 		)
 		err := ctrl.Validate(attrs)
-		klog.Infof("Got %v", err)
+		glog.Infof("Got %v", err)
 		if err != nil && !test.expectError {
 			t.Errorf("Test %q: unexpected error received: %v", test.name, err)
 		}
@@ -177,81 +168,65 @@ func TestDefaultPriority(t *testing.T) {
 	updatedDefaultClass1.GlobalDefault = false
 
 	tests := []struct {
-		name                      string
-		classesBefore             []*scheduling.PriorityClass
-		classesAfter              []*scheduling.PriorityClass
-		attributes                admission.Attributes
-		expectedDefaultBefore     int32
-		expectedDefaultNameBefore string
-		expectedDefaultAfter      int32
-		expectedDefaultNameAfter  string
+		name                  string
+		classesBefore         []*scheduling.PriorityClass
+		classesAfter          []*scheduling.PriorityClass
+		attributes            admission.Attributes
+		expectedDefaultBefore int32
+		expectedDefaultAfter  int32
 	}{
 		{
-			name:                      "simple resolution with a default class",
-			classesBefore:             []*scheduling.PriorityClass{defaultClass1},
-			classesAfter:              []*scheduling.PriorityClass{defaultClass1},
-			attributes:                nil,
-			expectedDefaultBefore:     defaultClass1.Value,
-			expectedDefaultNameBefore: defaultClass1.Name,
-			expectedDefaultAfter:      defaultClass1.Value,
-			expectedDefaultNameAfter:  defaultClass1.Name,
+			name:                  "simple resolution with a default class",
+			classesBefore:         []*scheduling.PriorityClass{defaultClass1},
+			classesAfter:          []*scheduling.PriorityClass{defaultClass1},
+			attributes:            nil,
+			expectedDefaultBefore: defaultClass1.Value,
+			expectedDefaultAfter:  defaultClass1.Value,
 		},
 		{
-			name:                      "add a default class",
-			classesBefore:             []*scheduling.PriorityClass{nondefaultClass1},
-			classesAfter:              []*scheduling.PriorityClass{nondefaultClass1, defaultClass1},
-			attributes:                admission.NewAttributesRecord(defaultClass1, nil, pcKind, "", defaultClass1.Name, pcResource, "", admission.Create, false, nil),
-			expectedDefaultBefore:     scheduling.DefaultPriorityWhenNoDefaultClassExists,
-			expectedDefaultNameBefore: "",
-			expectedDefaultAfter:      defaultClass1.Value,
-			expectedDefaultNameAfter:  defaultClass1.Name,
+			name:                  "add a default class",
+			classesBefore:         []*scheduling.PriorityClass{nondefaultClass1},
+			classesAfter:          []*scheduling.PriorityClass{nondefaultClass1, defaultClass1},
+			attributes:            admission.NewAttributesRecord(defaultClass1, nil, pcKind, "", defaultClass1.Name, pcResource, "", admission.Create, false, nil),
+			expectedDefaultBefore: scheduling.DefaultPriorityWhenNoDefaultClassExists,
+			expectedDefaultAfter:  defaultClass1.Value,
 		},
 		{
-			name:                      "multiple default classes resolves to the minimum value among them",
-			classesBefore:             []*scheduling.PriorityClass{defaultClass1, defaultClass2},
-			classesAfter:              []*scheduling.PriorityClass{defaultClass2},
-			attributes:                admission.NewAttributesRecord(nil, nil, pcKind, "", defaultClass1.Name, pcResource, "", admission.Delete, false, nil),
-			expectedDefaultBefore:     defaultClass1.Value,
-			expectedDefaultNameBefore: defaultClass1.Name,
-			expectedDefaultAfter:      defaultClass2.Value,
-			expectedDefaultNameAfter:  defaultClass2.Name,
+			name:                  "multiple default classes resolves to the minimum value among them",
+			classesBefore:         []*scheduling.PriorityClass{defaultClass1, defaultClass2},
+			classesAfter:          []*scheduling.PriorityClass{defaultClass2},
+			attributes:            admission.NewAttributesRecord(nil, nil, pcKind, "", defaultClass1.Name, pcResource, "", admission.Delete, false, nil),
+			expectedDefaultBefore: defaultClass1.Value,
+			expectedDefaultAfter:  defaultClass2.Value,
 		},
 		{
-			name:                      "delete default priority class",
-			classesBefore:             []*scheduling.PriorityClass{defaultClass1},
-			classesAfter:              []*scheduling.PriorityClass{},
-			attributes:                admission.NewAttributesRecord(nil, nil, pcKind, "", defaultClass1.Name, pcResource, "", admission.Delete, false, nil),
-			expectedDefaultBefore:     defaultClass1.Value,
-			expectedDefaultNameBefore: defaultClass1.Name,
-			expectedDefaultAfter:      scheduling.DefaultPriorityWhenNoDefaultClassExists,
-			expectedDefaultNameAfter:  "",
+			name:                  "delete default priority class",
+			classesBefore:         []*scheduling.PriorityClass{defaultClass1},
+			classesAfter:          []*scheduling.PriorityClass{},
+			attributes:            admission.NewAttributesRecord(nil, nil, pcKind, "", defaultClass1.Name, pcResource, "", admission.Delete, false, nil),
+			expectedDefaultBefore: defaultClass1.Value,
+			expectedDefaultAfter:  scheduling.DefaultPriorityWhenNoDefaultClassExists,
 		},
 		{
-			name:                      "update default class and remove its global default",
-			classesBefore:             []*scheduling.PriorityClass{defaultClass1},
-			classesAfter:              []*scheduling.PriorityClass{&updatedDefaultClass1},
-			attributes:                admission.NewAttributesRecord(&updatedDefaultClass1, defaultClass1, pcKind, "", defaultClass1.Name, pcResource, "", admission.Update, false, nil),
-			expectedDefaultBefore:     defaultClass1.Value,
-			expectedDefaultNameBefore: defaultClass1.Name,
-			expectedDefaultAfter:      scheduling.DefaultPriorityWhenNoDefaultClassExists,
-			expectedDefaultNameAfter:  "",
+			name:                  "update default class and remove its global default",
+			classesBefore:         []*scheduling.PriorityClass{defaultClass1},
+			classesAfter:          []*scheduling.PriorityClass{&updatedDefaultClass1},
+			attributes:            admission.NewAttributesRecord(&updatedDefaultClass1, defaultClass1, pcKind, "", defaultClass1.Name, pcResource, "", admission.Update, false, nil),
+			expectedDefaultBefore: defaultClass1.Value,
+			expectedDefaultAfter:  scheduling.DefaultPriorityWhenNoDefaultClassExists,
 		},
 	}
 
 	for _, test := range tests {
-		klog.V(4).Infof("starting test %q", test.name)
+		glog.V(4).Infof("starting test %q", test.name)
 		ctrl := newPlugin()
-		if err := addPriorityClasses(ctrl, test.classesBefore); err != nil {
-			t.Errorf("Test %q: unable to add object to informer: %v", test.name, err)
-		}
-		pcName, defaultPriority, err := ctrl.getDefaultPriority()
+		addPriorityClasses(ctrl, test.classesBefore)
+		defaultPriority, err := ctrl.getDefaultPriority()
 		if err != nil {
 			t.Errorf("Test %q: unexpected error while getting default priority: %v", test.name, err)
 		}
-		if err == nil &&
-			(defaultPriority != test.expectedDefaultBefore || pcName != test.expectedDefaultNameBefore) {
-			t.Errorf("Test %q: expected default priority %s(%d), but got %s(%d)",
-				test.name, test.expectedDefaultNameBefore, test.expectedDefaultBefore, pcName, defaultPriority)
+		if err == nil && defaultPriority != test.expectedDefaultBefore {
+			t.Errorf("Test %q: expected default priority %d, but got %d", test.name, test.expectedDefaultBefore, defaultPriority)
 		}
 		if test.attributes != nil {
 			err := ctrl.Validate(test.attributes)
@@ -259,17 +234,13 @@ func TestDefaultPriority(t *testing.T) {
 				t.Errorf("Test %q: unexpected error received: %v", test.name, err)
 			}
 		}
-		if err := addPriorityClasses(ctrl, test.classesAfter); err != nil {
-			t.Errorf("Test %q: unable to add object to informer: %v", test.name, err)
-		}
-		pcName, defaultPriority, err = ctrl.getDefaultPriority()
+		addPriorityClasses(ctrl, test.classesAfter)
+		defaultPriority, err = ctrl.getDefaultPriority()
 		if err != nil {
 			t.Errorf("Test %q: unexpected error while getting default priority: %v", test.name, err)
 		}
-		if err == nil &&
-			(defaultPriority != test.expectedDefaultAfter || pcName != test.expectedDefaultNameAfter) {
-			t.Errorf("Test %q: expected default priority %s(%d), but got %s(%d)",
-				test.name, test.expectedDefaultNameAfter, test.expectedDefaultAfter, pcName, defaultPriority)
+		if err == nil && defaultPriority != test.expectedDefaultAfter {
+			t.Errorf("Test %q: expected default priority %d, but got %d", test.name, test.expectedDefaultAfter, defaultPriority)
 		}
 	}
 }
@@ -468,9 +439,9 @@ func TestPodAdmission(t *testing.T) {
 		},
 	}
 	// Enable PodPriority feature gate.
-	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.PodPriority, true)()
+	utilfeature.DefaultFeatureGate.Set(fmt.Sprintf("%s=true", features.PodPriority))
 	// Enable ExperimentalCriticalPodAnnotation feature gate.
-	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.ExperimentalCriticalPodAnnotation, true)()
+	utilfeature.DefaultFeatureGate.Set(fmt.Sprintf("%s=true", features.ExperimentalCriticalPodAnnotation))
 	tests := []struct {
 		name            string
 		existingClasses []*scheduling.PriorityClass
@@ -582,13 +553,11 @@ func TestPodAdmission(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		klog.V(4).Infof("starting test %q", test.name)
+		glog.V(4).Infof("starting test %q", test.name)
 
 		ctrl := newPlugin()
 		// Add existing priority classes.
-		if err := addPriorityClasses(ctrl, test.existingClasses); err != nil {
-			t.Errorf("Test %q: unable to add object to informer: %v", test.name, err)
-		}
+		addPriorityClasses(ctrl, test.existingClasses)
 
 		// Create pod.
 		attrs := admission.NewAttributesRecord(
@@ -604,7 +573,7 @@ func TestPodAdmission(t *testing.T) {
 			nil,
 		)
 		err := ctrl.Admit(attrs)
-		klog.Infof("Got %v", err)
+		glog.Infof("Got %v", err)
 		if !test.expectError {
 			if err != nil {
 				t.Errorf("Test %q: unexpected error received: %v", test.name, err)

@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	apps "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,13 +63,13 @@ func (d *DaemonSetPrepuller) CreateFunc(component string) error {
 	if component == constants.Etcd {
 		image = images.GetEtcdImage(d.cfg)
 	} else {
-		image = images.GetKubernetesImage(component, d.cfg)
+		image = images.GetKubeControlPlaneImage(component, d.cfg)
 	}
 	ds := buildPrePullDaemonSet(component, image)
 
 	// Create the DaemonSet in the API Server
 	if err := apiclient.CreateOrUpdateDaemonSet(d.client, ds); err != nil {
-		return errors.Wrapf(err, "unable to create a DaemonSet for prepulling the component %q", component)
+		return fmt.Errorf("unable to create a DaemonSet for prepulling the component %q: %v", component, err)
 	}
 	return nil
 }
@@ -85,14 +84,15 @@ func (d *DaemonSetPrepuller) WaitFunc(component string) {
 func (d *DaemonSetPrepuller) DeleteFunc(component string) error {
 	dsName := addPrepullPrefix(component)
 	if err := apiclient.DeleteDaemonSetForeground(d.client, metav1.NamespaceSystem, dsName); err != nil {
-		return errors.Wrapf(err, "unable to cleanup the DaemonSet used for prepulling %s", component)
+		return fmt.Errorf("unable to cleanup the DaemonSet used for prepulling %s: %v", component, err)
 	}
 	fmt.Printf("[upgrade/prepull] Prepulled image for component %s.\n", component)
 	return nil
 }
 
 // PrepullImagesInParallel creates DaemonSets synchronously but waits in parallel for the images to pull
-func PrepullImagesInParallel(kubePrepuller Prepuller, timeout time.Duration, componentsToPrepull []string) error {
+func PrepullImagesInParallel(kubePrepuller Prepuller, timeout time.Duration) error {
+	componentsToPrepull := append(constants.MasterComponents, constants.Etcd)
 	fmt.Printf("[upgrade/prepull] Will prepull images for components %v\n", componentsToPrepull)
 
 	timeoutChan := time.After(timeout)
@@ -131,7 +131,7 @@ func waitForItemsFromChan(timeoutChan <-chan time.Time, stringChan chan string, 
 	for {
 		select {
 		case <-timeoutChan:
-			return errors.New("The prepull operation timed out")
+			return fmt.Errorf("The prepull operation timed out")
 		case result := <-stringChan:
 			i++
 			// If the cleanup function errors; error here as well

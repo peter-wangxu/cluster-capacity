@@ -21,11 +21,10 @@ import (
 
 	"k8s.io/api/core/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/kubernetes/pkg/kubectl"
+	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-	"k8s.io/kubernetes/pkg/kubectl/generate"
-	generateversioned "k8s.io/kubernetes/pkg/kubectl/generate/versioned"
 	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
-	"k8s.io/kubernetes/pkg/kubectl/util/templates"
 )
 
 // NewCmdCreateService is a macro command to create a new service
@@ -72,11 +71,11 @@ func NewCmdCreateServiceClusterIP(f cmdutil.Factory, ioStreams genericclioptions
 	}
 
 	cmd := &cobra.Command{
-		Use:                   "clusterip NAME [--tcp=<port>:<targetPort>] [--dry-run]",
+		Use: "clusterip NAME [--tcp=<port>:<targetPort>] [--dry-run]",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Create a ClusterIP service."),
-		Long:                  serviceClusterIPLong,
-		Example:               serviceClusterIPExample,
+		Short:   i18n.T("Create a ClusterIP service."),
+		Long:    serviceClusterIPLong,
+		Example: serviceClusterIPExample,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(options.Complete(f, cmd, args))
 			cmdutil.CheckErr(options.Run())
@@ -87,7 +86,7 @@ func NewCmdCreateServiceClusterIP(f cmdutil.Factory, ioStreams genericclioptions
 
 	cmdutil.AddApplyAnnotationFlags(cmd)
 	cmdutil.AddValidateFlags(cmd)
-	cmdutil.AddGeneratorFlags(cmd, generateversioned.ServiceClusterIPGeneratorV1Name)
+	cmdutil.AddGeneratorFlags(cmd, cmdutil.ServiceClusterIPGeneratorV1Name)
 	addPortFlags(cmd)
 	cmd.Flags().String("clusterip", "", i18n.T("Assign your own ClusterIP or set to 'None' for a 'headless' service (no loadbalancing)."))
 	return cmd
@@ -103,10 +102,10 @@ func (o *ServiceClusterIPOpts) Complete(f cmdutil.Factory, cmd *cobra.Command, a
 		return err
 	}
 
-	var generator generate.StructuredGenerator
+	var generator kubectl.StructuredGenerator
 	switch generatorName := cmdutil.GetFlagString(cmd, "generator"); generatorName {
-	case generateversioned.ServiceClusterIPGeneratorV1Name:
-		generator = &generateversioned.ServiceCommonGeneratorV1{
+	case cmdutil.ServiceClusterIPGeneratorV1Name:
+		generator = &kubectl.ServiceCommonGeneratorV1{
 			Name:      name,
 			TCP:       cmdutil.GetFlagStringSlice(cmd, "tcp"),
 			Type:      v1.ServiceTypeClusterIP,
@@ -144,11 +143,11 @@ func NewCmdCreateServiceNodePort(f cmdutil.Factory, ioStreams genericclioptions.
 	}
 
 	cmd := &cobra.Command{
-		Use:                   "nodeport NAME [--tcp=port:targetPort] [--dry-run]",
+		Use: "nodeport NAME [--tcp=port:targetPort] [--dry-run]",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Create a NodePort service."),
-		Long:                  serviceNodePortLong,
-		Example:               serviceNodePortExample,
+		Short:   i18n.T("Create a NodePort service."),
+		Long:    serviceNodePortLong,
+		Example: serviceNodePortExample,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(options.Complete(f, cmd, args))
 			cmdutil.CheckErr(options.Run())
@@ -159,7 +158,7 @@ func NewCmdCreateServiceNodePort(f cmdutil.Factory, ioStreams genericclioptions.
 
 	cmdutil.AddApplyAnnotationFlags(cmd)
 	cmdutil.AddValidateFlags(cmd)
-	cmdutil.AddGeneratorFlags(cmd, generateversioned.ServiceNodePortGeneratorV1Name)
+	cmdutil.AddGeneratorFlags(cmd, cmdutil.ServiceNodePortGeneratorV1Name)
 	cmd.Flags().Int("node-port", 0, "Port used to expose the service on each node in a cluster.")
 	addPortFlags(cmd)
 	return cmd
@@ -171,10 +170,10 @@ func (o *ServiceNodePortOpts) Complete(f cmdutil.Factory, cmd *cobra.Command, ar
 		return err
 	}
 
-	var generator generate.StructuredGenerator
+	var generator kubectl.StructuredGenerator
 	switch generatorName := cmdutil.GetFlagString(cmd, "generator"); generatorName {
-	case generateversioned.ServiceNodePortGeneratorV1Name:
-		generator = &generateversioned.ServiceCommonGeneratorV1{
+	case cmdutil.ServiceNodePortGeneratorV1Name:
+		generator = &kubectl.ServiceCommonGeneratorV1{
 			Name:      name,
 			TCP:       cmdutil.GetFlagStringSlice(cmd, "tcp"),
 			Type:      v1.ServiceTypeNodePort,
@@ -213,11 +212,11 @@ func NewCmdCreateServiceLoadBalancer(f cmdutil.Factory, ioStreams genericcliopti
 	}
 
 	cmd := &cobra.Command{
-		Use:                   "loadbalancer NAME [--tcp=port:targetPort] [--dry-run]",
+		Use: "loadbalancer NAME [--tcp=port:targetPort] [--dry-run]",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Create a LoadBalancer service."),
-		Long:                  serviceLoadBalancerLong,
-		Example:               serviceLoadBalancerExample,
+		Short:   i18n.T("Create a LoadBalancer service."),
+		Long:    serviceLoadBalancerLong,
+		Example: serviceLoadBalancerExample,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(options.Complete(f, cmd, args))
 			cmdutil.CheckErr(options.Run())
@@ -228,7 +227,7 @@ func NewCmdCreateServiceLoadBalancer(f cmdutil.Factory, ioStreams genericcliopti
 
 	cmdutil.AddApplyAnnotationFlags(cmd)
 	cmdutil.AddValidateFlags(cmd)
-	cmdutil.AddGeneratorFlags(cmd, generateversioned.ServiceLoadBalancerGeneratorV1Name)
+	cmdutil.AddGeneratorFlags(cmd, cmdutil.ServiceLoadBalancerGeneratorV1Name)
 	addPortFlags(cmd)
 	return cmd
 }
@@ -239,10 +238,10 @@ func (o *ServiceLoadBalancerOpts) Complete(f cmdutil.Factory, cmd *cobra.Command
 		return err
 	}
 
-	var generator generate.StructuredGenerator
+	var generator kubectl.StructuredGenerator
 	switch generatorName := cmdutil.GetFlagString(cmd, "generator"); generatorName {
-	case generateversioned.ServiceLoadBalancerGeneratorV1Name:
-		generator = &generateversioned.ServiceCommonGeneratorV1{
+	case cmdutil.ServiceLoadBalancerGeneratorV1Name:
+		generator = &kubectl.ServiceCommonGeneratorV1{
 			Name:      name,
 			TCP:       cmdutil.GetFlagStringSlice(cmd, "tcp"),
 			Type:      v1.ServiceTypeLoadBalancer,
@@ -284,11 +283,11 @@ func NewCmdCreateServiceExternalName(f cmdutil.Factory, ioStreams genericcliopti
 	}
 
 	cmd := &cobra.Command{
-		Use:                   "externalname NAME --external-name external.name [--dry-run]",
+		Use: "externalname NAME --external-name external.name [--dry-run]",
 		DisableFlagsInUseLine: true,
-		Short:                 i18n.T("Create an ExternalName service."),
-		Long:                  serviceExternalNameLong,
-		Example:               serviceExternalNameExample,
+		Short:   i18n.T("Create an ExternalName service."),
+		Long:    serviceExternalNameLong,
+		Example: serviceExternalNameExample,
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(options.Complete(f, cmd, args))
 			cmdutil.CheckErr(options.Run())
@@ -299,7 +298,7 @@ func NewCmdCreateServiceExternalName(f cmdutil.Factory, ioStreams genericcliopti
 
 	cmdutil.AddApplyAnnotationFlags(cmd)
 	cmdutil.AddValidateFlags(cmd)
-	cmdutil.AddGeneratorFlags(cmd, generateversioned.ServiceExternalNameGeneratorV1Name)
+	cmdutil.AddGeneratorFlags(cmd, cmdutil.ServiceExternalNameGeneratorV1Name)
 	addPortFlags(cmd)
 	cmd.Flags().String("external-name", "", i18n.T("External name of service"))
 	cmd.MarkFlagRequired("external-name")
@@ -312,10 +311,10 @@ func (o *ServiceExternalNameOpts) Complete(f cmdutil.Factory, cmd *cobra.Command
 		return err
 	}
 
-	var generator generate.StructuredGenerator
+	var generator kubectl.StructuredGenerator
 	switch generatorName := cmdutil.GetFlagString(cmd, "generator"); generatorName {
-	case generateversioned.ServiceExternalNameGeneratorV1Name:
-		generator = &generateversioned.ServiceCommonGeneratorV1{
+	case cmdutil.ServiceExternalNameGeneratorV1Name:
+		generator = &kubectl.ServiceCommonGeneratorV1{
 			Name:         name,
 			Type:         v1.ServiceTypeExternalName,
 			ExternalName: cmdutil.GetFlagString(cmd, "external-name"),

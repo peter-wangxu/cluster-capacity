@@ -17,14 +17,12 @@ limitations under the License.
 package constants
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/pkg/errors"
-
-	"k8s.io/apimachinery/pkg/util/version"
-	kubeadmapi "k8s.io/kubernetes/cmd/kubeadm/app/apis/kubeadm"
+	"k8s.io/kubernetes/pkg/util/version"
 )
 
 func TestGetStaticPodDirectory(t *testing.T) {
@@ -153,7 +151,7 @@ func TestEtcdSupportedVersion(t *testing.T) {
 		{
 			kubernetesVersion: "1.99.0",
 			expectedVersion:   nil,
-			expectedError:     errors.New("Unsupported or unknown Kubernetes version(1.99.0)"),
+			expectedError:     fmt.Errorf("Unsupported or unknown kubernetes version(1.99.0)"),
 		},
 		{
 			kubernetesVersion: "1.10.0",
@@ -204,15 +202,15 @@ func TestEtcdSupportedVersion(t *testing.T) {
 
 func TestGetKubeDNSVersion(t *testing.T) {
 	var tests = []struct {
-		dns      kubeadmapi.DNSAddOnType
+		dns      string
 		expected string
 	}{
 		{
-			dns:      kubeadmapi.KubeDNS,
+			dns:      KubeDNS,
 			expected: KubeDNSVersion,
 		},
 		{
-			dns:      kubeadmapi.CoreDNS,
+			dns:      CoreDNS,
 			expected: CoreDNSVersion,
 		},
 	}

@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/golang/glog"
 	"golang.org/x/time/rate"
-	"k8s.io/klog"
 
 	certificates "k8s.io/api/certificates/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -57,7 +57,7 @@ func NewCertificateController(
 ) *CertificateController {
 	// Send events to the apiserver
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(klog.Infof)
+	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
 	cc := &CertificateController{
@@ -74,12 +74,12 @@ func NewCertificateController(
 	csrInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			csr := obj.(*certificates.CertificateSigningRequest)
-			klog.V(4).Infof("Adding certificate request %s", csr.Name)
+			glog.V(4).Infof("Adding certificate request %s", csr.Name)
 			cc.enqueueCertificateRequest(obj)
 		},
 		UpdateFunc: func(old, new interface{}) {
 			oldCSR := old.(*certificates.CertificateSigningRequest)
-			klog.V(4).Infof("Updating certificate request %s", oldCSR.Name)
+			glog.V(4).Infof("Updating certificate request %s", oldCSR.Name)
 			cc.enqueueCertificateRequest(new)
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -87,16 +87,16 @@ func NewCertificateController(
 			if !ok {
 				tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 				if !ok {
-					klog.V(2).Infof("Couldn't get object from tombstone %#v", obj)
+					glog.V(2).Infof("Couldn't get object from tombstone %#v", obj)
 					return
 				}
 				csr, ok = tombstone.Obj.(*certificates.CertificateSigningRequest)
 				if !ok {
-					klog.V(2).Infof("Tombstone contained object that is not a CSR: %#v", obj)
+					glog.V(2).Infof("Tombstone contained object that is not a CSR: %#v", obj)
 					return
 				}
 			}
-			klog.V(4).Infof("Deleting certificate request %s", csr.Name)
+			glog.V(4).Infof("Deleting certificate request %s", csr.Name)
 			cc.enqueueCertificateRequest(obj)
 		},
 	})
@@ -110,8 +110,8 @@ func (cc *CertificateController) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer cc.queue.ShutDown()
 
-	klog.Infof("Starting certificate controller")
-	defer klog.Infof("Shutting down certificate controller")
+	glog.Infof("Starting certificate controller")
+	defer glog.Infof("Shutting down certificate controller")
 
 	if !controller.WaitForCacheSync("certificate", stopCh, cc.csrsSynced) {
 		return
@@ -143,7 +143,7 @@ func (cc *CertificateController) processNextWorkItem() bool {
 		if _, ignorable := err.(ignorableError); !ignorable {
 			utilruntime.HandleError(fmt.Errorf("Sync %v failed with : %v", cKey, err))
 		} else {
-			klog.V(4).Infof("Sync %v failed with : %v", cKey, err)
+			glog.V(4).Infof("Sync %v failed with : %v", cKey, err)
 		}
 		return true
 	}
@@ -169,11 +169,11 @@ func (cc *CertificateController) enqueueCertificateRequest(obj interface{}) {
 func (cc *CertificateController) syncFunc(key string) error {
 	startTime := time.Now()
 	defer func() {
-		klog.V(4).Infof("Finished syncing certificate request %q (%v)", key, time.Since(startTime))
+		glog.V(4).Infof("Finished syncing certificate request %q (%v)", key, time.Since(startTime))
 	}()
 	csr, err := cc.csrLister.Get(key)
 	if errors.IsNotFound(err) {
-		klog.V(3).Infof("csr has been deleted: %v", key)
+		glog.V(3).Infof("csr has been deleted: %v", key)
 		return nil
 	}
 	if err != nil {

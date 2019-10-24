@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -48,11 +50,12 @@ type testcase struct {
 	existingNode        *v1.Node
 	existingNodeInfo    *csiv1alpha1.CSINodeInfo
 	inputNodeID         string
-	inputTopology       map[string]string
+	inputTopology       *csi.Topology
 	inputVolumeLimit    int64
 	expectedNodeIDMap   map[string]string
 	expectedTopologyMap map[string]sets.String
 	expectedLabels      map[string]string
+	expectNoNodeInfo    bool
 	expectedVolumeLimit int64
 	expectFail          bool
 }
@@ -61,17 +64,19 @@ type nodeIDMap map[string]string
 type topologyKeyMap map[string][]string
 type labelMap map[string]string
 
-// TestInstallCSIDriver tests InstallCSIDriver with various existing Node and/or CSINodeInfo objects.
+// TestAddNodeInfo tests AddNodeInfo with various existing Node and/or CSINodeInfo objects.
 // The node IDs in all test cases below are the same between the Node annotation and CSINodeInfo.
-func TestInstallCSIDriver(t *testing.T) {
+func TestAddNodeInfo(t *testing.T) {
 	testcases := []testcase{
 		{
 			name:         "empty node",
 			driverName:   "com.example.csi/driver1",
 			existingNode: generateNode(nil /* nodeIDs */, nil /* labels */, nil /*capacity*/),
 			inputNodeID:  "com.example.csi/csi-node1",
-			inputTopology: map[string]string{
-				"com.example.csi/zone": "zoneA",
+			inputTopology: &csi.Topology{
+				Segments: map[string]string{
+					"com.example.csi/zone": "zoneA",
+				},
 			},
 			expectedNodeIDMap: map[string]string{
 				"com.example.csi/driver1": "com.example.csi/csi-node1",
@@ -101,8 +106,10 @@ func TestInstallCSIDriver(t *testing.T) {
 				},
 			),
 			inputNodeID: "com.example.csi/csi-node1",
-			inputTopology: map[string]string{
-				"com.example.csi/zone": "zoneA",
+			inputTopology: &csi.Topology{
+				Segments: map[string]string{
+					"com.example.csi/zone": "zoneA",
+				},
 			},
 			expectedNodeIDMap: map[string]string{
 				"com.example.csi/driver1": "com.example.csi/csi-node1",
@@ -129,8 +136,10 @@ func TestInstallCSIDriver(t *testing.T) {
 				nil, /* topologyKeys */
 			),
 			inputNodeID: "com.example.csi/csi-node1",
-			inputTopology: map[string]string{
-				"com.example.csi/zone": "zoneA",
+			inputTopology: &csi.Topology{
+				Segments: map[string]string{
+					"com.example.csi/zone": "zoneA",
+				},
 			},
 			expectedNodeIDMap: map[string]string{
 				"com.example.csi/driver1": "com.example.csi/csi-node1",
@@ -161,8 +170,10 @@ func TestInstallCSIDriver(t *testing.T) {
 				},
 			),
 			inputNodeID: "com.example.csi/csi-node1",
-			inputTopology: map[string]string{
-				"com.example.csi/zone": "zoneA",
+			inputTopology: &csi.Topology{
+				Segments: map[string]string{
+					"com.example.csi/zone": "zoneA",
+				},
 			},
 			expectedNodeIDMap: map[string]string{
 				"com.example.csi/driver1":          "com.example.csi/csi-node1",
@@ -196,8 +207,10 @@ func TestInstallCSIDriver(t *testing.T) {
 				},
 			),
 			inputNodeID: "com.example.csi/csi-node1",
-			inputTopology: map[string]string{
-				"com.example.csi/zone": "other-zone",
+			inputTopology: &csi.Topology{
+				Segments: map[string]string{
+					"com.example.csi/zone": "other-zone",
+				},
 			},
 			expectFail: true,
 		},
@@ -220,8 +233,10 @@ func TestInstallCSIDriver(t *testing.T) {
 				},
 			),
 			inputNodeID: "com.example.csi/other-node",
-			inputTopology: map[string]string{
-				"com.example.csi/rack": "rack1",
+			inputTopology: &csi.Topology{
+				Segments: map[string]string{
+					"com.example.csi/rack": "rack1",
+				},
 			},
 			expectedNodeIDMap: map[string]string{
 				"com.example.csi/driver1": "com.example.csi/other-node",
@@ -360,9 +375,9 @@ func TestInstallCSIDriver(t *testing.T) {
 	test(t, true /* addNodeInfo */, true /* csiNodeInfoEnabled */, testcases)
 }
 
-// TestInstallCSIDriver_CSINodeInfoDisabled tests InstallCSIDriver with various existing Node annotations
+// TestAddNodeInfo_CSINodeInfoDisabled tests AddNodeInfo with various existing Node annotations
 // and CSINodeInfo feature gate disabled.
-func TestInstallCSIDriver_CSINodeInfoDisabled(t *testing.T) {
+func TestAddNodeInfo_CSINodeInfoDisabled(t *testing.T) {
 	testcases := []testcase{
 		{
 			name:         "empty node",
@@ -405,15 +420,16 @@ func TestInstallCSIDriver_CSINodeInfoDisabled(t *testing.T) {
 	test(t, true /* addNodeInfo */, false /* csiNodeInfoEnabled */, testcases)
 }
 
-// TestUninstallCSIDriver tests UninstallCSIDriver with various existing Node and/or CSINodeInfo objects.
-func TestUninstallCSIDriver(t *testing.T) {
+// TestRemoveNodeInfo tests RemoveNodeInfo with various existing Node and/or CSINodeInfo objects.
+func TestRemoveNodeInfo(t *testing.T) {
 	testcases := []testcase{
 		{
-			name:              "empty node and empty CSINodeInfo",
+			name:              "empty node and no CSINodeInfo",
 			driverName:        "com.example.csi/driver1",
 			existingNode:      generateNode(nil /* nodeIDs */, nil /* labels */, nil /*capacity*/),
 			expectedNodeIDMap: nil,
 			expectedLabels:    nil,
+			expectNoNodeInfo:  true,
 		},
 		{
 			name:       "pre-existing node info from the same driver",
@@ -435,6 +451,7 @@ func TestUninstallCSIDriver(t *testing.T) {
 			),
 			expectedNodeIDMap: nil,
 			expectedLabels:    map[string]string{"com.example.csi/zone": "zoneA"},
+			expectNoNodeInfo:  true,
 		},
 		{
 			name:       "pre-existing node info from different driver",
@@ -463,7 +480,7 @@ func TestUninstallCSIDriver(t *testing.T) {
 			expectedLabels: map[string]string{"net.example.storage/zone": "zoneA"},
 		},
 		{
-			name:       "pre-existing info about the same driver in node, but empty CSINodeInfo",
+			name:       "pre-existing info about the same driver in node, but no CSINodeInfo",
 			driverName: "com.example.csi/driver1",
 			existingNode: generateNode(
 				nodeIDMap{
@@ -472,9 +489,10 @@ func TestUninstallCSIDriver(t *testing.T) {
 				nil /* labels */, nil /*capacity*/),
 			expectedNodeIDMap: nil,
 			expectedLabels:    nil,
+			expectNoNodeInfo:  true,
 		},
 		{
-			name: "pre-existing info about a different driver in node, but empty CSINodeInfo",
+			name: "pre-existing info about a different driver in node, but no CSINodeInfo",
 			existingNode: generateNode(
 				nodeIDMap{
 					"net.example.storage/other-driver": "net.example.storage/csi-node1",
@@ -483,7 +501,8 @@ func TestUninstallCSIDriver(t *testing.T) {
 			expectedNodeIDMap: map[string]string{
 				"net.example.storage/other-driver": "net.example.storage/csi-node1",
 			},
-			expectedLabels: nil,
+			expectedLabels:   nil,
+			expectNoNodeInfo: true,
 		},
 		{
 			name:       "new node with valid max limit",
@@ -498,6 +517,7 @@ func TestUninstallCSIDriver(t *testing.T) {
 			),
 			inputTopology:       nil,
 			inputNodeID:         "com.example.csi/csi-node1",
+			expectNoNodeInfo:    true,
 			expectedVolumeLimit: 0,
 		},
 	}
@@ -505,9 +525,9 @@ func TestUninstallCSIDriver(t *testing.T) {
 	test(t, false /* addNodeInfo */, true /* csiNodeInfoEnabled */, testcases)
 }
 
-// TestUninstallCSIDriver tests UninstallCSIDriver with various existing Node objects and CSINodeInfo
+// TestRemoveNodeInfo tests RemoveNodeInfo with various existing Node objects and CSINodeInfo
 // feature disabled.
-func TestUninstallCSIDriver_CSINodeInfoDisabled(t *testing.T) {
+func TestRemoveNodeInfo_CSINodeInfoDisabled(t *testing.T) {
 	testcases := []testcase{
 		{
 			name:              "empty node",
@@ -542,7 +562,7 @@ func TestUninstallCSIDriver_CSINodeInfoDisabled(t *testing.T) {
 	test(t, false /* addNodeInfo */, false /* csiNodeInfoEnabled */, testcases)
 }
 
-func TestInstallCSIDriverExistingAnnotation(t *testing.T) {
+func TestAddNodeInfoExistingAnnotation(t *testing.T) {
 	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.CSINodeInfo, true)()
 
 	driverName := "com.example.csi/driver1"
@@ -553,7 +573,7 @@ func TestInstallCSIDriverExistingAnnotation(t *testing.T) {
 		existingNode *v1.Node
 	}{
 		{
-			name: "pre-existing info about the same driver in node, but empty CSINodeInfo",
+			name: "pre-existing info about the same driver in node, but no CSINodeInfo",
 			existingNode: generateNode(
 				nodeIDMap{
 					"com.example.csi/driver1": "com.example.csi/csi-node1",
@@ -561,7 +581,7 @@ func TestInstallCSIDriverExistingAnnotation(t *testing.T) {
 				nil /* labels */, nil /*capacity*/),
 		},
 		{
-			name: "pre-existing info about a different driver in node, but empty CSINodeInfo",
+			name: "pre-existing info about a different driver in node, but no CSINodeInfo",
 			existingNode: generateNode(
 				nodeIDMap{
 					"net.example.storage/other-driver": "net.example.storage/test-node",
@@ -593,14 +613,9 @@ func TestInstallCSIDriverExistingAnnotation(t *testing.T) {
 		nim := NewNodeInfoManager(types.NodeName(nodeName), host)
 
 		// Act
-		_, err = nim.CreateCSINodeInfo()
+		err = nim.AddNodeInfo(driverName, nodeID, 0 /* maxVolumeLimit */, nil) // TODO test maxVolumeLimit
 		if err != nil {
-			t.Errorf("expected no error from creating CSINodeinfo but got: %v", err)
-			continue
-		}
-		err = nim.InstallCSIDriver(driverName, nodeID, 0 /* maxVolumeLimit */, nil) // TODO test maxVolumeLimit
-		if err != nil {
-			t.Errorf("expected no error from InstallCSIDriver call but got: %v", err)
+			t.Errorf("expected no error from AddNodeInfo call but got: %v", err)
 			continue
 		}
 
@@ -611,305 +626,14 @@ func TestInstallCSIDriverExistingAnnotation(t *testing.T) {
 			continue
 		}
 
-		if len(nodeInfo.Spec.Drivers) != 1 || len(nodeInfo.Status.Drivers) != 1 {
-			t.Errorf("expected 1 CSIDriverInfoSpec and 1 CSIDriverInfoStatus entry but got: %d, %d",
-				len(nodeInfo.Spec.Drivers), len(nodeInfo.Status.Drivers))
+		if len(nodeInfo.CSIDrivers) != 1 {
+			t.Errorf("expected 1 CSIDriverInfo entry but got: %d", len(nodeInfo.CSIDrivers))
 			continue
 		}
 
-		driver := nodeInfo.Spec.Drivers[0]
-		if driver.Name != driverName || driver.NodeID != nodeID {
-			t.Errorf("expected Driver to be %q and NodeID to be %q, but got: %q:%q", driverName, nodeID, driver.Name, driver.NodeID)
-		}
-	}
-}
-
-func TestValidateCSINodeInfo(t *testing.T) {
-	testcases := []struct {
-		name      string
-		nodeInfo  *csiv1alpha1.CSINodeInfo
-		expectErr bool
-	}{
-		{
-			name: "multiple drivers with different node IDs, topology keys and status",
-			nodeInfo: &csiv1alpha1.CSINodeInfo{
-				Spec: csiv1alpha1.CSINodeInfoSpec{
-					Drivers: []csiv1alpha1.CSIDriverInfoSpec{
-						{
-							Name:         "driver1",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1, key2"},
-						},
-						{
-							Name:         "driverB",
-							NodeID:       "nodeA",
-							TopologyKeys: []string{"keyA", "keyB"},
-						},
-					},
-				},
-				Status: csiv1alpha1.CSINodeInfoStatus{
-					Drivers: []csiv1alpha1.CSIDriverInfoStatus{
-						{
-							Name:                  "driver1",
-							Available:             true,
-							VolumePluginMechanism: "in-tree",
-						},
-						{
-							Name:                  "driverB",
-							Available:             false,
-							VolumePluginMechanism: "csi",
-						},
-					},
-				},
-			},
-			expectErr: false,
-		},
-		{
-			name: "multiple drivers with same node IDs, topology keys and status",
-			nodeInfo: &csiv1alpha1.CSINodeInfo{
-				Spec: csiv1alpha1.CSINodeInfoSpec{
-					Drivers: []csiv1alpha1.CSIDriverInfoSpec{
-						{
-							Name:         "driver1",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1"},
-						},
-						{
-							Name:         "driver2",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1"},
-						},
-					},
-				},
-				Status: csiv1alpha1.CSINodeInfoStatus{
-					Drivers: []csiv1alpha1.CSIDriverInfoStatus{
-						{
-							Name:                  "driver1",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-						{
-							Name:                  "driver2",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-					},
-				},
-			},
-			expectErr: false,
-		},
-		{
-			name: "duplicate drivers in driver specs",
-			nodeInfo: &csiv1alpha1.CSINodeInfo{
-				Spec: csiv1alpha1.CSINodeInfoSpec{
-					Drivers: []csiv1alpha1.CSIDriverInfoSpec{
-						{
-							Name:         "driver1",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1", "key2"},
-						},
-						{
-							Name:         "driver1",
-							NodeID:       "nodeX",
-							TopologyKeys: []string{"keyA", "keyB"},
-						},
-					},
-				},
-				Status: csiv1alpha1.CSINodeInfoStatus{
-					Drivers: []csiv1alpha1.CSIDriverInfoStatus{
-						{
-							Name:                  "driver1",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-					},
-				},
-			},
-			expectErr: true,
-		},
-		{
-			name: "duplicate drivers in driver statuses",
-			nodeInfo: &csiv1alpha1.CSINodeInfo{
-				Spec: csiv1alpha1.CSINodeInfoSpec{
-					Drivers: []csiv1alpha1.CSIDriverInfoSpec{
-						{
-							Name:         "driver1",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1", "key2"},
-						},
-					},
-				},
-				Status: csiv1alpha1.CSINodeInfoStatus{
-					Drivers: []csiv1alpha1.CSIDriverInfoStatus{
-						{
-							Name:                  "driver1",
-							Available:             true,
-							VolumePluginMechanism: "in-tree",
-						},
-						{
-							Name:                  "driver1",
-							Available:             false,
-							VolumePluginMechanism: "csi",
-						},
-					},
-				},
-			},
-			expectErr: true,
-		},
-		{
-			name: "single driver with duplicate topology keys in driver specs",
-			nodeInfo: &csiv1alpha1.CSINodeInfo{
-				Spec: csiv1alpha1.CSINodeInfoSpec{
-					Drivers: []csiv1alpha1.CSIDriverInfoSpec{
-						{
-							Name:         "driver1",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1", "key1"},
-						},
-					},
-				},
-				Status: csiv1alpha1.CSINodeInfoStatus{
-					Drivers: []csiv1alpha1.CSIDriverInfoStatus{
-						{
-							Name:                  "driver1",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-					},
-				},
-			},
-			expectErr: true,
-		},
-		{
-			name: "multiple drivers with one set of duplicate topology keys in driver specs",
-			nodeInfo: &csiv1alpha1.CSINodeInfo{
-				Spec: csiv1alpha1.CSINodeInfoSpec{
-					Drivers: []csiv1alpha1.CSIDriverInfoSpec{
-						{
-							Name:         "driver1",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1"},
-						},
-						{
-							Name:         "driver2",
-							NodeID:       "nodeX",
-							TopologyKeys: []string{"keyA", "keyA"},
-						},
-					},
-				},
-				Status: csiv1alpha1.CSINodeInfoStatus{
-					Drivers: []csiv1alpha1.CSIDriverInfoStatus{
-						{
-							Name:                  "driver1",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-						{
-							Name:                  "driver2",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-					},
-				},
-			},
-			expectErr: true,
-		},
-		{
-			name: "mismatch between drivers in specs and status (null intersection)",
-			nodeInfo: &csiv1alpha1.CSINodeInfo{
-				Spec: csiv1alpha1.CSINodeInfoSpec{
-					Drivers: []csiv1alpha1.CSIDriverInfoSpec{
-						{
-							Name:         "driver1",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1"},
-						},
-						{
-							Name:         "driver2",
-							NodeID:       "nodeX",
-							TopologyKeys: []string{"keyA", "keyA"},
-						},
-					},
-				},
-				Status: csiv1alpha1.CSINodeInfoStatus{
-					Drivers: []csiv1alpha1.CSIDriverInfoStatus{
-						{
-							Name:                  "driver3",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-					},
-				},
-			},
-			expectErr: true,
-		},
-		{
-			name: "mismatch between drivers in specs and status (specs superset of status)",
-			nodeInfo: &csiv1alpha1.CSINodeInfo{
-				Spec: csiv1alpha1.CSINodeInfoSpec{
-					Drivers: []csiv1alpha1.CSIDriverInfoSpec{
-						{
-							Name:         "driver1",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1"},
-						},
-						{
-							Name:         "driver2",
-							NodeID:       "nodeX",
-							TopologyKeys: []string{"keyA", "keyA"},
-						},
-					},
-				},
-				Status: csiv1alpha1.CSINodeInfoStatus{
-					Drivers: []csiv1alpha1.CSIDriverInfoStatus{
-						{
-							Name:                  "driver1",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-					},
-				},
-			},
-			expectErr: true,
-		},
-		{
-			name: "mismatch between drivers in specs and status (specs subset of status)",
-			nodeInfo: &csiv1alpha1.CSINodeInfo{
-				Spec: csiv1alpha1.CSINodeInfoSpec{
-					Drivers: []csiv1alpha1.CSIDriverInfoSpec{
-						{
-							Name:         "driver1",
-							NodeID:       "node1",
-							TopologyKeys: []string{"key1"},
-						},
-					},
-				},
-				Status: csiv1alpha1.CSINodeInfoStatus{
-					Drivers: []csiv1alpha1.CSIDriverInfoStatus{
-						{
-							Name:                  "driver1",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-						{
-							Name:                  "driver2",
-							Available:             true,
-							VolumePluginMechanism: "csi",
-						},
-					},
-				},
-			},
-			expectErr: true,
-		},
-	}
-	for _, tc := range testcases {
-		t.Logf("test case: %q", tc.name)
-		err := validateCSINodeInfo(tc.nodeInfo)
-		if err != nil && !tc.expectErr {
-			t.Errorf("expected no errors from validateCSINodeInfo but got error %v", err)
-		}
-		if err == nil && tc.expectErr {
-			t.Errorf("expected error from validateCSINodeInfo but got no errors")
+		driver := nodeInfo.CSIDrivers[0]
+		if driver.Driver != driverName || driver.NodeID != nodeID {
+			t.Errorf("expected Driver to be %q and NodeID to be %q, but got: %q:%q", driverName, nodeID, driver.Driver, driver.NodeID)
 		}
 	}
 }
@@ -945,29 +669,28 @@ func test(t *testing.T, addNodeInfo bool, csiNodeInfoEnabled bool, testcases []t
 		nim := NewNodeInfoManager(types.NodeName(nodeName), host)
 
 		//// Act
-		nim.CreateCSINodeInfo()
 		if addNodeInfo {
-			err = nim.InstallCSIDriver(tc.driverName, tc.inputNodeID, tc.inputVolumeLimit, tc.inputTopology)
+			err = nim.AddNodeInfo(tc.driverName, tc.inputNodeID, tc.inputVolumeLimit, tc.inputTopology)
 		} else {
-			err = nim.UninstallCSIDriver(tc.driverName)
+			err = nim.RemoveNodeInfo(tc.driverName)
 		}
 
 		//// Assert
 		if tc.expectFail {
 			if err == nil {
-				t.Errorf("expected an error from InstallCSIDriver call but got none")
+				t.Errorf("expected an error from AddNodeInfo call but got none")
 			}
 			continue
 		} else if err != nil {
-			t.Errorf("expected no error from InstallCSIDriver call but got: %v", err)
+			t.Errorf("expected no error from AddNodeInfo call but got: %v", err)
 			continue
 		}
 
 		actions := client.Actions()
 
 		var node *v1.Node
-		if action := hasPatchAction(actions); action != nil {
-			node, err = applyNodeStatusPatch(tc.existingNode, action.(clienttesting.PatchActionImpl).GetPatch())
+		if hasPatchAction(actions) {
+			node, err = applyNodeStatusPatch(tc.existingNode, actions[1].(clienttesting.PatchActionImpl).GetPatch())
 			assert.NoError(t, err)
 		} else {
 			node, err = client.CoreV1().Nodes().Get(nodeName, metav1.GetOptions{})
@@ -987,7 +710,6 @@ func test(t *testing.T, addNodeInfo bool, csiNodeInfoEnabled bool, testcases []t
 		}
 
 		// Node ID annotation
-		foundInNode := false
 		annNodeID, ok := node.Annotations[annotationKeyNodeID]
 		if ok {
 			if tc.expectedNodeIDMap == nil {
@@ -1001,8 +723,6 @@ func test(t *testing.T, addNodeInfo bool, csiNodeInfoEnabled bool, testcases []t
 
 				if !helper.Semantic.DeepEqual(actualNodeIDs, tc.expectedNodeIDMap) {
 					t.Errorf("expected annotation %v; got: %v", tc.expectedNodeIDMap, actualNodeIDs)
-				} else {
-					foundInNode = true
 				}
 			}
 		} else {
@@ -1019,35 +739,24 @@ func test(t *testing.T, addNodeInfo bool, csiNodeInfoEnabled bool, testcases []t
 
 			/* CSINodeInfo validation */
 			nodeInfo, err := csiClient.Csi().CSINodeInfos().Get(nodeName, metav1.GetOptions{})
-			if err != nil {
+			if tc.expectNoNodeInfo && errors.IsNotFound(err) {
+				continue
+			} else if err != nil {
 				t.Errorf("error getting CSINodeInfo: %v", err)
 				continue
 			}
 
 			// Extract node IDs and topology keys
-
-			availableDrivers := sets.String{}
 			actualNodeIDs := make(map[string]string)
 			actualTopologyKeys := make(map[string]sets.String)
-			for _, driver := range nodeInfo.Status.Drivers {
-				if driver.Available {
-					availableDrivers.Insert(driver.Name)
-				}
-
-			}
-			for _, driver := range nodeInfo.Spec.Drivers {
-				if availableDrivers.Has(driver.Name) {
-					actualNodeIDs[driver.Name] = driver.NodeID
-					actualTopologyKeys[driver.Name] = sets.NewString(driver.TopologyKeys...)
-				}
+			for _, driver := range nodeInfo.CSIDrivers {
+				actualNodeIDs[driver.Driver] = driver.NodeID
+				actualTopologyKeys[driver.Driver] = sets.NewString(driver.TopologyKeys...)
 			}
 
 			// Node IDs
-			// No need to check if Node ID found in NodeInfo if it was present in the NodeID
-			if !foundInNode {
-				if !helper.Semantic.DeepEqual(actualNodeIDs, tc.expectedNodeIDMap) {
-					t.Errorf("expected node IDs %v from CSINodeInfo; got: %v", tc.expectedNodeIDMap, actualNodeIDs)
-				}
+			if !helper.Semantic.DeepEqual(actualNodeIDs, tc.expectedNodeIDMap) {
+				t.Errorf("expected node IDs %v from CSINodeInfo; got: %v", tc.expectedNodeIDMap, actualNodeIDs)
 			}
 
 			// Topology keys
@@ -1093,34 +802,22 @@ func generateNode(nodeIDs, labels map[string]string, capacity map[v1.ResourceNam
 }
 
 func generateNodeInfo(nodeIDs map[string]string, topologyKeys map[string][]string) *csiv1alpha1.CSINodeInfo {
-	driverInfoSpecs := []csiv1alpha1.CSIDriverInfoSpec{}
-	driverInfoStatuses := []csiv1alpha1.CSIDriverInfoStatus{}
+	var drivers []csiv1alpha1.CSIDriverInfo
 	for k, nodeID := range nodeIDs {
-		dspec := csiv1alpha1.CSIDriverInfoSpec{
-			Name:   k,
+		d := csiv1alpha1.CSIDriverInfo{
+			Driver: k,
 			NodeID: nodeID,
 		}
-		dstatus := csiv1alpha1.CSIDriverInfoStatus{
-			Name:                  k,
-			Available:             true,
-			VolumePluginMechanism: csiv1alpha1.VolumePluginMechanismInTree,
-		}
 		if top, exists := topologyKeys[k]; exists {
-			dspec.TopologyKeys = top
+			d.TopologyKeys = top
 		}
-		driverInfoSpecs = append(driverInfoSpecs, dspec)
-		driverInfoStatuses = append(driverInfoStatuses, dstatus)
+		drivers = append(drivers, d)
 	}
 	return &csiv1alpha1.CSINodeInfo{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node1",
 		},
-		Spec: csiv1alpha1.CSINodeInfoSpec{
-			Drivers: driverInfoSpecs,
-		},
-		Status: csiv1alpha1.CSINodeInfoStatus{
-			Drivers: driverInfoStatuses,
-		},
+		CSIDrivers: drivers,
 	}
 }
 
@@ -1141,11 +838,11 @@ func applyNodeStatusPatch(originalNode *v1.Node, patch []byte) (*v1.Node, error)
 	return updatedNode, nil
 }
 
-func hasPatchAction(actions []clienttesting.Action) clienttesting.Action {
+func hasPatchAction(actions []clienttesting.Action) bool {
 	for _, action := range actions {
 		if action.GetVerb() == "patch" {
-			return action
+			return true
 		}
 	}
-	return nil
+	return false
 }

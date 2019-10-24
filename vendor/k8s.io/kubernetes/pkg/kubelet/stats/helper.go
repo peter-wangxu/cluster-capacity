@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	cadvisorapiv1 "github.com/google/cadvisor/info/v1"
 	cadvisorapiv2 "github.com/google/cadvisor/info/v2"
@@ -132,21 +132,6 @@ func cadvisorInfoToContainerStats(name string, info *cadvisorapiv2.ContainerInfo
 	return result
 }
 
-// cadvisorInfoToContainerCPUAndMemoryStats returns the statsapi.ContainerStats converted
-// from the container and filesystem info.
-func cadvisorInfoToContainerCPUAndMemoryStats(name string, info *cadvisorapiv2.ContainerInfo) *statsapi.ContainerStats {
-	result := &statsapi.ContainerStats{
-		StartTime: metav1.NewTime(info.Spec.CreationTime),
-		Name:      name,
-	}
-
-	cpu, memory := cadvisorInfoToCPUandMemoryStats(info)
-	result.CPU = cpu
-	result.Memory = memory
-
-	return result
-}
-
 // cadvisorInfoToNetworkStats returns the statsapi.NetworkStats converted from
 // the container info from cadvisor.
 func cadvisorInfoToNetworkStats(name string, info *cadvisorapiv2.ContainerInfo) *statsapi.NetworkStats {
@@ -206,7 +191,7 @@ func cadvisorInfoToUserDefinedMetrics(info *cadvisorapiv2.ContainerInfo) []stats
 		for name, values := range stat.CustomMetrics {
 			specVal, ok := udmMap[name]
 			if !ok {
-				klog.Warningf("spec for custom metric %q is missing from cAdvisor output. Spec: %+v, Metrics: %+v", name, info.Spec, stat.CustomMetrics)
+				glog.Warningf("spec for custom metric %q is missing from cAdvisor output. Spec: %+v, Metrics: %+v", name, info.Spec, stat.CustomMetrics)
 				continue
 			}
 			for _, value := range values {
@@ -226,8 +211,8 @@ func cadvisorInfoToUserDefinedMetrics(info *cadvisorapiv2.ContainerInfo) []stats
 	for _, specVal := range udmMap {
 		udm = append(udm, statsapi.UserDefinedMetric{
 			UserDefinedMetricDescriptor: specVal.ref,
-			Time:                        metav1.NewTime(specVal.time),
-			Value:                       specVal.value,
+			Time:  metav1.NewTime(specVal.time),
+			Value: specVal.value,
 		})
 	}
 	return udm

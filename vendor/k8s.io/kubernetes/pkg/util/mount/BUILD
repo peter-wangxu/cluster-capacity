@@ -21,7 +21,7 @@ go_library(
     importpath = "k8s.io/kubernetes/pkg/util/mount",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/k8s.io/klog:go_default_library",
+        "//vendor/github.com/golang/glog:go_default_library",
         "//vendor/k8s.io/utils/exec:go_default_library",
     ] + select({
         "@io_bazel_rules_go//go/platform:android": [
@@ -73,7 +73,6 @@ go_test(
         "exec_mount_test.go",
         "mount_helper_test.go",
         "mount_linux_test.go",
-        "mount_test.go",
         "mount_windows_test.go",
         "nsenter_mount_test.go",
         "safe_format_and_mount_test.go",
@@ -84,8 +83,8 @@ go_test(
     ] + select({
         "@io_bazel_rules_go//go/platform:linux": [
             "//pkg/util/nsenter:go_default_library",
+            "//vendor/github.com/golang/glog:go_default_library",
             "//vendor/golang.org/x/sys/unix:go_default_library",
-            "//vendor/k8s.io/klog:go_default_library",
             "//vendor/k8s.io/utils/exec:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:windows": [

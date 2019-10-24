@@ -2,10 +2,6 @@
 reviewers:
   - mml
   - cheftako
-  - spiffxp
 approvers:
   - mml
   - cheftako
-labels:
-  - area/conformance
-  - sig/architecture

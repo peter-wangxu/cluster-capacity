@@ -19,8 +19,8 @@ package cpumanager
 import (
 	"fmt"
 
+	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
-	"k8s.io/klog"
 	v1qos "k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/state"
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/topology"
@@ -94,7 +94,7 @@ func NewStaticPolicy(topology *topology.CPUTopology, numReservedCPUs int) Policy
 		panic(fmt.Sprintf("[cpumanager] unable to reserve the required amount of CPUs (size of %s did not equal %d)", reserved, numReservedCPUs))
 	}
 
-	klog.Infof("[cpumanager] reserved %d CPUs (\"%s\") not available for exclusive assignment", reserved.Size(), reserved)
+	glog.Infof("[cpumanager] reserved %d CPUs (\"%s\") not available for exclusive assignment", reserved.Size(), reserved)
 
 	return &staticPolicy{
 		topology: topology,
@@ -108,7 +108,7 @@ func (p *staticPolicy) Name() string {
 
 func (p *staticPolicy) Start(s state.State) {
 	if err := p.validateState(s); err != nil {
-		klog.Errorf("[cpumanager] static policy invalid state: %s\n", err.Error())
+		glog.Errorf("[cpumanager] static policy invalid state: %s\n", err.Error())
 		panic("[cpumanager] - please drain node and remove policy state file")
 	}
 }
@@ -172,17 +172,17 @@ func (p *staticPolicy) assignableCPUs(s state.State) cpuset.CPUSet {
 
 func (p *staticPolicy) AddContainer(s state.State, pod *v1.Pod, container *v1.Container, containerID string) error {
 	if numCPUs := guaranteedCPUs(pod, container); numCPUs != 0 {
-		klog.Infof("[cpumanager] static policy: AddContainer (pod: %s, container: %s, container id: %s)", pod.Name, container.Name, containerID)
+		glog.Infof("[cpumanager] static policy: AddContainer (pod: %s, container: %s, container id: %s)", pod.Name, container.Name, containerID)
 		// container belongs in an exclusively allocated pool
 
 		if _, ok := s.GetCPUSet(containerID); ok {
-			klog.Infof("[cpumanager] static policy: container already present in state, skipping (container: %s, container id: %s)", container.Name, containerID)
+			glog.Infof("[cpumanager] static policy: container already present in state, skipping (container: %s, container id: %s)", container.Name, containerID)
 			return nil
 		}
 
 		cpuset, err := p.allocateCPUs(s, numCPUs)
 		if err != nil {
-			klog.Errorf("[cpumanager] unable to allocate %d CPUs (container id: %s, error: %v)", numCPUs, containerID, err)
+			glog.Errorf("[cpumanager] unable to allocate %d CPUs (container id: %s, error: %v)", numCPUs, containerID, err)
 			return err
 		}
 		s.SetCPUSet(containerID, cpuset)
@@ -192,7 +192,7 @@ func (p *staticPolicy) AddContainer(s state.State, pod *v1.Pod, container *v1.Co
 }
 
 func (p *staticPolicy) RemoveContainer(s state.State, containerID string) error {
-	klog.Infof("[cpumanager] static policy: RemoveContainer (container id: %s)", containerID)
+	glog.Infof("[cpumanager] static policy: RemoveContainer (container id: %s)", containerID)
 	if toRelease, ok := s.GetCPUSet(containerID); ok {
 		s.Delete(containerID)
 		// Mutate the shared pool, adding released cpus.
@@ -202,7 +202,7 @@ func (p *staticPolicy) RemoveContainer(s state.State, containerID string) error 
 }
 
 func (p *staticPolicy) allocateCPUs(s state.State, numCPUs int) (cpuset.CPUSet, error) {
-	klog.Infof("[cpumanager] allocateCpus: (numCPUs: %d)", numCPUs)
+	glog.Infof("[cpumanager] allocateCpus: (numCPUs: %d)", numCPUs)
 	result, err := takeByTopology(p.topology, p.assignableCPUs(s), numCPUs)
 	if err != nil {
 		return cpuset.NewCPUSet(), err
@@ -210,7 +210,7 @@ func (p *staticPolicy) allocateCPUs(s state.State, numCPUs int) (cpuset.CPUSet, 
 	// Remove allocated CPUs from the shared CPUSet.
 	s.SetDefaultCPUSet(s.GetDefaultCPUSet().Difference(result))
 
-	klog.Infof("[cpumanager] allocateCPUs: returning \"%v\"", result)
+	glog.Infof("[cpumanager] allocateCPUs: returning \"%v\"", result)
 	return result, nil
 }
 

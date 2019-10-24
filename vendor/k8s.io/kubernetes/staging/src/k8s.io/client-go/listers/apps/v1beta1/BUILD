@@ -11,6 +11,7 @@ go_library(
         "controllerrevision.go",
         "deployment.go",
         "expansion_generated.go",
+        "scale.go",
         "statefulset.go",
         "statefulset_expansion.go",
     ],

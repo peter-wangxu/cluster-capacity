@@ -20,15 +20,14 @@ import (
 	"fmt"
 	"io"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/admission"
-	genericadmissioninitializer "k8s.io/apiserver/pkg/admission/initializer"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	corev1listers "k8s.io/client-go/listers/core/v1"
 	api "k8s.io/kubernetes/pkg/apis/core"
+	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	informers "k8s.io/kubernetes/pkg/client/informers/informers_generated/internalversion"
+	corelisters "k8s.io/kubernetes/pkg/client/listers/core/internalversion"
+	kubeapiserveradmission "k8s.io/kubernetes/pkg/kubeapiserver/admission"
 )
 
 // PluginName indicates name of admission plugin.
@@ -46,13 +45,13 @@ func Register(plugins *admission.Plugins) {
 // It is useful in deployments that do not want to restrict creation of a namespace prior to its usage.
 type Provision struct {
 	*admission.Handler
-	client          kubernetes.Interface
-	namespaceLister corev1listers.NamespaceLister
+	client          internalclientset.Interface
+	namespaceLister corelisters.NamespaceLister
 }
 
 var _ admission.MutationInterface = &Provision{}
-var _ = genericadmissioninitializer.WantsExternalKubeInformerFactory(&Provision{})
-var _ = genericadmissioninitializer.WantsExternalKubeClientSet(&Provision{})
+var _ = kubeapiserveradmission.WantsInternalKubeInformerFactory(&Provision{})
+var _ = kubeapiserveradmission.WantsInternalKubeClientSet(&Provision{})
 
 // Admit makes an admission decision based on the request attributes
 func (p *Provision) Admit(a admission.Attributes) error {
@@ -81,12 +80,12 @@ func (p *Provision) Admit(a admission.Attributes) error {
 		return admission.NewForbidden(a, err)
 	}
 
-	namespace := &corev1.Namespace{
+	namespace := &api.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      a.GetNamespace(),
 			Namespace: "",
 		},
-		Status: corev1.NamespaceStatus{},
+		Status: api.NamespaceStatus{},
 	}
 
 	_, err = p.client.Core().Namespaces().Create(namespace)
@@ -104,14 +103,14 @@ func NewProvision() *Provision {
 	}
 }
 
-// SetExternalKubeClientSet implements the WantsExternalKubeClientSet interface.
-func (p *Provision) SetExternalKubeClientSet(client kubernetes.Interface) {
+// SetInternalKubeClientSet implements the WantsInternalKubeClientSet interface.
+func (p *Provision) SetInternalKubeClientSet(client internalclientset.Interface) {
 	p.client = client
 }
 
-// SetExternalKubeInformerFactory implements the WantsExternalKubeInformerFactory interface.
-func (p *Provision) SetExternalKubeInformerFactory(f informers.SharedInformerFactory) {
-	namespaceInformer := f.Core().V1().Namespaces()
+// SetInternalKubeInformerFactory implements the WantsInternalKubeInformerFactory interface.
+func (p *Provision) SetInternalKubeInformerFactory(f informers.SharedInformerFactory) {
+	namespaceInformer := f.Core().InternalVersion().Namespaces()
 	p.namespaceLister = namespaceInformer.Lister()
 	p.SetReadyFunc(namespaceInformer.Informer().HasSynced)
 }

@@ -17,13 +17,13 @@ limitations under the License.
 package ipvs
 
 import (
-	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"fmt"
+	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/klog"
 	utilipvs "k8s.io/kubernetes/pkg/util/ipvs"
 )
 
@@ -64,7 +64,7 @@ func (q *graceTerminateRSList) add(rs *listItem) bool {
 		return false
 	}
 
-	klog.V(5).Infof("Adding rs %v to graceful delete rsList", rs)
+	glog.V(5).Infof("Adding rs %v to graceful delete rsList", rs)
 	q.list[uniqueRS] = rs
 	return true
 }
@@ -87,11 +87,11 @@ func (q *graceTerminateRSList) flushList(handler func(rsToDelete *listItem) (boo
 	for name, rs := range q.list {
 		deleted, err := handler(rs)
 		if err != nil {
-			klog.Errorf("Try delete rs %q err: %v", name, err)
+			glog.Errorf("Try delete rs %q err: %v", name, err)
 			success = false
 		}
 		if deleted {
-			klog.Infof("lw: remote out of the list: %s", name)
+			glog.Infof("lw: remote out of the list: %s", name)
 			q.remove(rs)
 		}
 	}
@@ -142,7 +142,7 @@ func (m *GracefulTerminationManager) GracefulDeleteRS(vs *utilipvs.VirtualServer
 	}
 	deleted, err := m.deleteRsFunc(ele)
 	if err != nil {
-		klog.Errorf("Delete rs %q err: %v", ele.String(), err)
+		glog.Errorf("Delete rs %q err: %v", ele.String(), err)
 	}
 	if deleted {
 		return nil
@@ -152,13 +152,13 @@ func (m *GracefulTerminationManager) GracefulDeleteRS(vs *utilipvs.VirtualServer
 	if err != nil {
 		return err
 	}
-	klog.V(5).Infof("Adding an element to graceful delete rsList: %+v", ele)
+	glog.V(5).Infof("Adding an element to graceful delete rsList: %+v", ele)
 	m.rsList.add(ele)
 	return nil
 }
 
 func (m *GracefulTerminationManager) deleteRsFunc(rsToDelete *listItem) (bool, error) {
-	klog.Infof("Trying to delete rs: %s", rsToDelete.String())
+	glog.Infof("Trying to delete rs: %s", rsToDelete.String())
 	rss, err := m.ipvs.GetRealServers(rsToDelete.VirtualServer)
 	if err != nil {
 		return false, err
@@ -169,10 +169,10 @@ func (m *GracefulTerminationManager) deleteRsFunc(rsToDelete *listItem) (bool, e
 			//     (existing connections will be deleted on the next packet because sysctlExpireNoDestConn=1)
 			// For other protocols, don't delete until all connections have expired)
 			if strings.ToUpper(rsToDelete.VirtualServer.Protocol) != "UDP" && rs.ActiveConn+rs.InactiveConn != 0 {
-				klog.Infof("Not deleting, RS %v: %v ActiveConn, %v InactiveConn", rsToDelete.String(), rs.ActiveConn, rs.InactiveConn)
+				glog.Infof("Not deleting, RS %v: %v ActiveConn, %v InactiveConn", rsToDelete.String(), rs.ActiveConn, rs.InactiveConn)
 				return false, nil
 			}
-			klog.Infof("Deleting rs: %s", rsToDelete.String())
+			glog.Infof("Deleting rs: %s", rsToDelete.String())
 			err := m.ipvs.DeleteRealServer(rsToDelete.VirtualServer, rs)
 			if err != nil {
 				return false, fmt.Errorf("Delete destination %q err: %v", rs.String(), err)
@@ -185,7 +185,7 @@ func (m *GracefulTerminationManager) deleteRsFunc(rsToDelete *listItem) (bool, e
 
 func (m *GracefulTerminationManager) tryDeleteRs() {
 	if !m.rsList.flushList(m.deleteRsFunc) {
-		klog.Errorf("Try flush graceful termination list err")
+		glog.Errorf("Try flush graceful termination list err")
 	}
 }
 

@@ -23,7 +23,7 @@ import (
 
 	"github.com/blang/semver"
 	dockertypes "github.com/docker/docker/api/types"
-	"k8s.io/klog"
+	"github.com/golang/glog"
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 )
 
@@ -32,7 +32,7 @@ func DefaultMemorySwap() int64 {
 }
 
 func (ds *dockerService) getSecurityOpts(seccompProfile string, separator rune) ([]string, error) {
-	klog.Warningf("getSecurityOpts is unsupported in this build")
+	glog.Warningf("getSecurityOpts is unsupported in this build")
 	return nil, nil
 }
 
@@ -41,12 +41,12 @@ func (ds *dockerService) updateCreateConfig(
 	config *runtimeapi.ContainerConfig,
 	sandboxConfig *runtimeapi.PodSandboxConfig,
 	podSandboxID string, securityOptSep rune, apiVersion *semver.Version) error {
-	klog.Warningf("updateCreateConfig is unsupported in this build")
+	glog.Warningf("updateCreateConfig is unsupported in this build")
 	return nil
 }
 
 func (ds *dockerService) determinePodIPBySandboxID(uid string) string {
-	klog.Warningf("determinePodIPBySandboxID is unsupported in this build")
+	glog.Warningf("determinePodIPBySandboxID is unsupported in this build")
 	return ""
 }
 

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"os"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // CleanupMountPoint unmounts the given path and
@@ -33,7 +33,7 @@ func CleanupMountPoint(mountPath string, mounter Interface, extensiveMountPointC
 	// the path in the kubelet container, not on the host.
 	pathExists, pathErr := PathExists(mountPath)
 	if !pathExists {
-		klog.Warningf("Warning: Unmount skipped because path does not exist: %v", mountPath)
+		glog.Warningf("Warning: Unmount skipped because path does not exist: %v", mountPath)
 		return nil
 	}
 	corruptedMnt := IsCorruptedMnt(pathErr)
@@ -65,13 +65,13 @@ func doCleanupMountPoint(mountPath string, mounter Interface, extensiveMountPoin
 		}
 
 		if notMnt {
-			klog.Warningf("Warning: %q is not a mountpoint, deleting", mountPath)
+			glog.Warningf("Warning: %q is not a mountpoint, deleting", mountPath)
 			return os.Remove(mountPath)
 		}
 	}
 
 	// Unmount the mount path
-	klog.V(4).Infof("%q is a mountpoint, unmounting", mountPath)
+	glog.V(4).Infof("%q is a mountpoint, unmounting", mountPath)
 	if err := mounter.Unmount(mountPath); err != nil {
 		return err
 	}
@@ -81,7 +81,7 @@ func doCleanupMountPoint(mountPath string, mounter Interface, extensiveMountPoin
 		return mntErr
 	}
 	if notMnt {
-		klog.V(4).Infof("%q is unmounted, deleting the directory", mountPath)
+		glog.V(4).Infof("%q is unmounted, deleting the directory", mountPath)
 		return os.Remove(mountPath)
 	}
 	return fmt.Errorf("Failed to unmount path %v", mountPath)

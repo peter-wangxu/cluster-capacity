@@ -20,7 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // Config contains the server (the webhook) cert and key.
@@ -40,7 +40,7 @@ func (c *Config) addFlags() {
 func configTLS(config Config) *tls.Config {
 	sCert, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
 	if err != nil {
-		klog.Fatal(err)
+		glog.Fatal(err)
 	}
 	return &tls.Config{
 		Certificates: []tls.Certificate{sCert},

@@ -30,7 +30,7 @@ import (
 
 	"github.com/docker/docker/daemon/logger/jsonfilelog/jsonlog"
 	"github.com/fsnotify/fsnotify"
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	internalapi "k8s.io/kubernetes/pkg/kubelet/apis/cri"
@@ -293,7 +293,7 @@ func ReadLogs(ctx context.Context, path, containerID string, opts *LogOptions, r
 	msg := &logMessage{}
 	for {
 		if stop {
-			klog.V(2).Infof("Finish parsing log file %q", path)
+			glog.V(2).Infof("Finish parsing log file %q", path)
 			return nil
 		}
 		l, err := r.ReadBytes(eol[0])
@@ -328,7 +328,7 @@ func ReadLogs(ctx context.Context, path, containerID string, opts *LogOptions, r
 			if len(l) == 0 {
 				continue
 			}
-			klog.Warningf("Incomplete line in log file %q: %q", path, l)
+			glog.Warningf("Incomplete line in log file %q: %q", path, l)
 		}
 		if parse == nil {
 			// Initialize the log parsing function.
@@ -340,16 +340,16 @@ func ReadLogs(ctx context.Context, path, containerID string, opts *LogOptions, r
 		// Parse the log line.
 		msg.reset()
 		if err := parse(l, msg); err != nil {
-			klog.Errorf("Failed with err %v when parsing log for log file %q: %q", err, path, l)
+			glog.Errorf("Failed with err %v when parsing log for log file %q: %q", err, path, l)
 			continue
 		}
 		// Write the log line into the stream.
 		if err := writer.write(msg); err != nil {
 			if err == errMaximumWrite {
-				klog.V(2).Infof("Finish parsing log file %q, hit bytes limit %d(bytes)", path, opts.bytes)
+				glog.V(2).Infof("Finish parsing log file %q, hit bytes limit %d(bytes)", path, opts.bytes)
 				return nil
 			}
-			klog.Errorf("Failed with err %v when writing log for log file %q: %+v", err, path, msg)
+			glog.Errorf("Failed with err %v when writing log for log file %q: %+v", err, path, msg)
 			return err
 		}
 	}
@@ -362,7 +362,7 @@ func isContainerRunning(id string, r internalapi.RuntimeService) (bool, error) {
 	}
 	// Only keep following container log when it is running.
 	if s.State != runtimeapi.ContainerState_CONTAINER_RUNNING {
-		klog.V(5).Infof("Container %q is not running (state=%q)", id, s.State)
+		glog.V(5).Infof("Container %q is not running (state=%q)", id, s.State)
 		// Do not return error because it's normal that the container stops
 		// during waiting.
 		return false, nil
@@ -387,10 +387,10 @@ func waitLogs(ctx context.Context, id string, w *fsnotify.Watcher, runtimeServic
 			case fsnotify.Write:
 				return true, nil
 			default:
-				klog.Errorf("Unexpected fsnotify event: %v, retrying...", e)
+				glog.Errorf("Unexpected fsnotify event: %v, retrying...", e)
 			}
 		case err := <-w.Errors:
-			klog.Errorf("Fsnotify watch error: %v, %d error retries remaining", err, errRetry)
+			glog.Errorf("Fsnotify watch error: %v, %d error retries remaining", err, errRetry)
 			if errRetry == 0 {
 				return false, err
 			}

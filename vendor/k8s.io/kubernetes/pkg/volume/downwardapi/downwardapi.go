@@ -18,6 +18,7 @@ package downwardapi
 
 import (
 	"fmt"
+	"path"
 	"path/filepath"
 
 	"k8s.io/api/core/v1"
@@ -29,7 +30,7 @@ import (
 	"k8s.io/kubernetes/pkg/volume"
 	volumeutil "k8s.io/kubernetes/pkg/volume/util"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 )
 
 // ProbeVolumePlugins is the entry point for plugin detection in a package.
@@ -170,23 +171,23 @@ func (b *downwardAPIVolumeMounter) SetUp(fsGroup *int64) error {
 }
 
 func (b *downwardAPIVolumeMounter) SetUpAt(dir string, fsGroup *int64) error {
-	klog.V(3).Infof("Setting up a downwardAPI volume %v for pod %v/%v at %v", b.volName, b.pod.Namespace, b.pod.Name, dir)
+	glog.V(3).Infof("Setting up a downwardAPI volume %v for pod %v/%v at %v", b.volName, b.pod.Namespace, b.pod.Name, dir)
 	// Wrap EmptyDir. Here we rely on the idempotency of the wrapped plugin to avoid repeatedly mounting
 	wrapped, err := b.plugin.host.NewWrapperMounter(b.volName, wrappedVolumeSpec(), b.pod, *b.opts)
 	if err != nil {
-		klog.Errorf("Couldn't setup downwardAPI volume %v for pod %v/%v: %s", b.volName, b.pod.Namespace, b.pod.Name, err.Error())
+		glog.Errorf("Couldn't setup downwardAPI volume %v for pod %v/%v: %s", b.volName, b.pod.Namespace, b.pod.Name, err.Error())
 		return err
 	}
 
 	data, err := CollectData(b.source.Items, b.pod, b.plugin.host, b.source.DefaultMode)
 	if err != nil {
-		klog.Errorf("Error preparing data for downwardAPI volume %v for pod %v/%v: %s", b.volName, b.pod.Namespace, b.pod.Name, err.Error())
+		glog.Errorf("Error preparing data for downwardAPI volume %v for pod %v/%v: %s", b.volName, b.pod.Namespace, b.pod.Name, err.Error())
 		return err
 	}
 
 	setupSuccess := false
 	if err := wrapped.SetUpAt(dir, fsGroup); err != nil {
-		klog.Errorf("Unable to setup downwardAPI volume %v for pod %v/%v: %s", b.volName, b.pod.Namespace, b.pod.Name, err.Error())
+		glog.Errorf("Unable to setup downwardAPI volume %v for pod %v/%v: %s", b.volName, b.pod.Namespace, b.pod.Name, err.Error())
 		return err
 	}
 
@@ -199,12 +200,12 @@ func (b *downwardAPIVolumeMounter) SetUpAt(dir string, fsGroup *int64) error {
 		if !setupSuccess {
 			unmounter, unmountCreateErr := b.plugin.NewUnmounter(b.volName, b.podUID)
 			if unmountCreateErr != nil {
-				klog.Errorf("error cleaning up mount %s after failure. Create unmounter failed with %v", b.volName, unmountCreateErr)
+				glog.Errorf("error cleaning up mount %s after failure. Create unmounter failed with %v", b.volName, unmountCreateErr)
 				return
 			}
 			tearDownErr := unmounter.TearDown()
 			if tearDownErr != nil {
-				klog.Errorf("error tearing down volume %s with : %v", b.volName, tearDownErr)
+				glog.Errorf("error tearing down volume %s with : %v", b.volName, tearDownErr)
 			}
 		}
 	}()
@@ -212,19 +213,19 @@ func (b *downwardAPIVolumeMounter) SetUpAt(dir string, fsGroup *int64) error {
 	writerContext := fmt.Sprintf("pod %v/%v volume %v", b.pod.Namespace, b.pod.Name, b.volName)
 	writer, err := volumeutil.NewAtomicWriter(dir, writerContext)
 	if err != nil {
-		klog.Errorf("Error creating atomic writer: %v", err)
+		glog.Errorf("Error creating atomic writer: %v", err)
 		return err
 	}
 
 	err = writer.Write(data)
 	if err != nil {
-		klog.Errorf("Error writing payload to dir: %v", err)
+		glog.Errorf("Error writing payload to dir: %v", err)
 		return err
 	}
 
 	err = volume.SetVolumeOwnership(b, fsGroup)
 	if err != nil {
-		klog.Errorf("Error applying volume ownership settings for group: %v", fsGroup)
+		glog.Errorf("Error applying volume ownership settings for group: %v", fsGroup)
 		return err
 	}
 
@@ -255,7 +256,7 @@ func CollectData(items []v1.DownwardAPIVolumeFile, pod *v1.Pod, host volume.Volu
 		if fileInfo.FieldRef != nil {
 			// TODO: unify with Kubelet.podFieldSelectorRuntimeValue
 			if values, err := fieldpath.ExtractFieldPathAsString(pod, fileInfo.FieldRef.FieldPath); err != nil {
-				klog.Errorf("Unable to extract field %s: %s", fileInfo.FieldRef.FieldPath, err.Error())
+				glog.Errorf("Unable to extract field %s: %s", fileInfo.FieldRef.FieldPath, err.Error())
 				errlist = append(errlist, err)
 			} else {
 				fileProjection.Data = []byte(values)
@@ -266,7 +267,7 @@ func CollectData(items []v1.DownwardAPIVolumeFile, pod *v1.Pod, host volume.Volu
 			if err != nil {
 				errlist = append(errlist, err)
 			} else if values, err := resource.ExtractResourceValueByContainerNameAndNodeAllocatable(fileInfo.ResourceFieldRef, pod, containerName, nodeAllocatable); err != nil {
-				klog.Errorf("Unable to extract field %s: %s", fileInfo.ResourceFieldRef.Resource, err.Error())
+				glog.Errorf("Unable to extract field %s: %s", fileInfo.ResourceFieldRef.Resource, err.Error())
 				errlist = append(errlist, err)
 			} else {
 				fileProjection.Data = []byte(values)
@@ -296,6 +297,10 @@ func (c *downwardAPIVolumeUnmounter) TearDown() error {
 
 func (c *downwardAPIVolumeUnmounter) TearDownAt(dir string) error {
 	return volumeutil.UnmountViaEmptyDir(dir, c.plugin.host, c.volName, wrappedVolumeSpec(), c.podUID)
+}
+
+func (b *downwardAPIVolumeMounter) getMetaDir() string {
+	return path.Join(b.plugin.host.GetPodPluginDir(b.podUID, utilstrings.EscapeQualifiedNameForDisk(downwardAPIPluginName)), b.volName)
 }
 
 func getVolumeSource(spec *volume.Spec) (*v1.DownwardAPIVolumeSource, bool) {

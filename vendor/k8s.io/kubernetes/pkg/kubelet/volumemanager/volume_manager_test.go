@@ -167,7 +167,6 @@ func TestGetExtraSupplementalGroupsForPod(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		fs := v1.PersistentVolumeFilesystem
 		pv := &v1.PersistentVolume{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "pvA",
@@ -184,7 +183,6 @@ func TestGetExtraSupplementalGroupsForPod(t *testing.T) {
 				ClaimRef: &v1.ObjectReference{
 					Name: claim.ObjectMeta.Name,
 				},
-				VolumeMode: &fs,
 			},
 		}
 		kubeClient := fake.NewSimpleClientset(node, pod, pv, claim)
@@ -275,7 +273,6 @@ func createObjects() (*v1.Node, *v1.Pod, *v1.PersistentVolume, *v1.PersistentVol
 			},
 		},
 	}
-	fs := v1.PersistentVolumeFilesystem
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "pvA",
@@ -289,7 +286,6 @@ func createObjects() (*v1.Node, *v1.Pod, *v1.PersistentVolume, *v1.PersistentVol
 			ClaimRef: &v1.ObjectReference{
 				Name: "claimA",
 			},
-			VolumeMode: &fs,
 		},
 	}
 	claim := &v1.PersistentVolumeClaim{

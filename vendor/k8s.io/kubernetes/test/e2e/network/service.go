@@ -33,12 +33,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientset "k8s.io/client-go/kubernetes"
-	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/kubernetes/pkg/client/clientset_generated/internalclientset"
+	"k8s.io/kubernetes/pkg/cloudprovider"
 	gcecloud "k8s.io/kubernetes/pkg/cloudprovider/providers/gce"
 	"k8s.io/kubernetes/pkg/controller/endpoint"
 	"k8s.io/kubernetes/test/e2e/framework"
-	"k8s.io/kubernetes/test/e2e/framework/providers/gce"
 	imageutils "k8s.io/kubernetes/test/utils/image"
 
 	. "github.com/onsi/ginkgo"
@@ -591,7 +590,7 @@ var _ = SIGDescribe("Services", func() {
 		if framework.ProviderIs("gce", "gke") {
 			By("creating a static load balancer IP")
 			staticIPName = fmt.Sprintf("e2e-external-lb-test-%s", framework.RunId)
-			gceCloud, err := gce.GetGCECloud()
+			gceCloud, err := framework.GetGCECloud()
 			Expect(err).NotTo(HaveOccurred())
 
 			err = gceCloud.ReserveRegionAddress(&compute.Address{Name: staticIPName}, gceCloud.Region())
@@ -648,7 +647,7 @@ var _ = SIGDescribe("Services", func() {
 			// coming from, so this is first-aid rather than surgery).
 			By("demoting the static IP to ephemeral")
 			if staticIPName != "" {
-				gceCloud, err := gce.GetGCECloud()
+				gceCloud, err := framework.GetGCECloud()
 				Expect(err).NotTo(HaveOccurred())
 				// Deleting it after it is attached "demotes" it to an
 				// ephemeral IP, which can be auto-released.
@@ -790,47 +789,11 @@ var _ = SIGDescribe("Services", func() {
 		jig.TestReachableUDP(nodeIP, udpNodePort, framework.KubeProxyLagTimeout)
 
 		By("hitting the TCP service's LoadBalancer")
-		jig.TestReachableHTTP(tcpIngressIP, svcPort, loadBalancerCreateTimeout)
+		jig.TestReachableHTTP(tcpIngressIP, svcPort, loadBalancerCreateTimeout) // this may actually recreate the LB
 
 		if loadBalancerSupportsUDP {
 			By("hitting the UDP service's LoadBalancer")
-			jig.TestReachableUDP(udpIngressIP, svcPort, loadBalancerCreateTimeout)
-		}
-
-		By("Scaling the pods to 0")
-		jig.Scale(ns1, 0)
-		jig.Scale(ns2, 0)
-
-		By("looking for ICMP REJECT on the TCP service's NodePort")
-		jig.TestRejectedHTTP(nodeIP, tcpNodePort, framework.KubeProxyLagTimeout)
-
-		By("looking for ICMP REJECT on the UDP service's NodePort")
-		jig.TestRejectedUDP(nodeIP, udpNodePort, framework.KubeProxyLagTimeout)
-
-		By("looking for ICMP REJECT on the TCP service's LoadBalancer")
-		jig.TestRejectedHTTP(tcpIngressIP, svcPort, loadBalancerCreateTimeout)
-
-		if loadBalancerSupportsUDP {
-			By("looking for ICMP REJECT on the UDP service's LoadBalancer")
-			jig.TestRejectedUDP(udpIngressIP, svcPort, loadBalancerCreateTimeout)
-		}
-
-		By("Scaling the pods to 1")
-		jig.Scale(ns1, 1)
-		jig.Scale(ns2, 1)
-
-		By("hitting the TCP service's NodePort")
-		jig.TestReachableHTTP(nodeIP, tcpNodePort, framework.KubeProxyLagTimeout)
-
-		By("hitting the UDP service's NodePort")
-		jig.TestReachableUDP(nodeIP, udpNodePort, framework.KubeProxyLagTimeout)
-
-		By("hitting the TCP service's LoadBalancer")
-		jig.TestReachableHTTP(tcpIngressIP, svcPort, loadBalancerCreateTimeout)
-
-		if loadBalancerSupportsUDP {
-			By("hitting the UDP service's LoadBalancer")
-			jig.TestReachableUDP(udpIngressIP, svcPort, loadBalancerCreateTimeout)
+			jig.TestReachableUDP(udpIngressIP, svcPort, loadBalancerCreateTimeout) // this may actually recreate the LB)
 		}
 
 		// Change the services back to ClusterIP.
@@ -1149,7 +1112,7 @@ var _ = SIGDescribe("Services", func() {
 		}
 
 		outOfRangeNodePort := 0
-		rand.Seed(time.Now().UnixNano())
+		rand.Seed(time.Now().UTC().UnixNano())
 		for {
 			outOfRangeNodePort = 1 + rand.Intn(65535)
 			if !framework.ServiceNodePortRange.Contains(outOfRangeNodePort) {
@@ -1310,7 +1273,7 @@ var _ = SIGDescribe("Services", func() {
 		By("Verifying pods for RC " + t.Name)
 		framework.ExpectNoError(framework.VerifyPods(t.Client, t.Namespace, t.Name, false, 1))
 
-		svcName := fmt.Sprintf("%v.%v.svc.%v", serviceName, f.Namespace.Name, framework.TestContext.ClusterDNSDomain)
+		svcName := fmt.Sprintf("%v.%v.svc.cluster.local", serviceName, f.Namespace.Name)
 		By("Waiting for endpoints of Service with DNS name " + svcName)
 
 		execPodName := framework.CreateExecPodOrFail(f.ClientSet, f.Namespace.Name, "execpod-", nil)
@@ -1588,14 +1551,13 @@ var _ = SIGDescribe("Services", func() {
 	// to be something else, see if the interval will be reconciled.
 	It("should reconcile LB health check interval [Slow][Serial]", func() {
 		const gceHcCheckIntervalSeconds = int64(8)
-		// This test is for clusters on GCE.
-		// (It restarts kube-controller-manager, which we don't support on GKE)
+		// This test is for clusters on GCE/GKE.
 		framework.SkipUnlessProviderIs("gce")
-		clusterID, err := gce.GetClusterID(cs)
+		clusterID, err := framework.GetClusterID(cs)
 		if err != nil {
 			framework.Failf("framework.GetClusterID(cs) = _, %v; want nil", err)
 		}
-		gceCloud, err := gce.GetGCECloud()
+		gceCloud, err := framework.GetGCECloud()
 		if err != nil {
 			framework.Failf("framework.GetGCECloud() = _, %v; want nil", err)
 		}
@@ -1621,7 +1583,7 @@ var _ = SIGDescribe("Services", func() {
 		svc = jig.WaitForLoadBalancerOrFail(namespace, serviceName, framework.LoadBalancerCreateTimeoutDefault)
 
 		hcName := gcecloud.MakeNodesHealthCheckName(clusterID)
-		hc, err := gceCloud.GetHTTPHealthCheck(hcName)
+		hc, err := gceCloud.GetHttpHealthCheck(hcName)
 		if err != nil {
 			framework.Failf("gceCloud.GetHttpHealthCheck(%q) = _, %v; want nil", hcName, err)
 		}
@@ -1629,7 +1591,7 @@ var _ = SIGDescribe("Services", func() {
 
 		By("modify the health check interval")
 		hc.CheckIntervalSec = gceHcCheckIntervalSeconds - 1
-		if err = gceCloud.UpdateHTTPHealthCheck(hc); err != nil {
+		if err = gceCloud.UpdateHttpHealthCheck(hc); err != nil {
 			framework.Failf("gcecloud.UpdateHttpHealthCheck(%#v) = %v; want nil", hc, err)
 		}
 
@@ -1644,7 +1606,7 @@ var _ = SIGDescribe("Services", func() {
 		By("health check should be reconciled")
 		pollInterval := framework.Poll * 10
 		if pollErr := wait.PollImmediate(pollInterval, framework.LoadBalancerCreateTimeoutDefault, func() (bool, error) {
-			hc, err := gceCloud.GetHTTPHealthCheck(hcName)
+			hc, err := gceCloud.GetHttpHealthCheck(hcName)
 			if err != nil {
 				framework.Logf("Failed to get HttpHealthCheck(%q): %v", hcName, err)
 				return false, err
@@ -1682,9 +1644,6 @@ var _ = SIGDescribe("Services", func() {
 
 	// TODO: Get rid of [DisabledForLargeClusters] tag when issue #56138 is fixed.
 	It("should have session affinity work for LoadBalancer service with ESIPP on [Slow] [DisabledForLargeClusters]", func() {
-		// L4 load balancer affinity `ClientIP` is not supported on AWS ELB.
-		framework.SkipIfProviderIs("aws")
-
 		svc := getServeHostnameService("service")
 		svc.Spec.Type = v1.ServiceTypeLoadBalancer
 		svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyTypeLocal
@@ -1693,9 +1652,6 @@ var _ = SIGDescribe("Services", func() {
 
 	// TODO: Get rid of [DisabledForLargeClusters] tag when issue #56138 is fixed.
 	It("should be able to switch session affinity for LoadBalancer service with ESIPP on [Slow] [DisabledForLargeClusters]", func() {
-		// L4 load balancer affinity `ClientIP` is not supported on AWS ELB.
-		framework.SkipIfProviderIs("aws")
-
 		svc := getServeHostnameService("service")
 		svc.Spec.Type = v1.ServiceTypeLoadBalancer
 		svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyTypeLocal
@@ -1704,9 +1660,6 @@ var _ = SIGDescribe("Services", func() {
 
 	// TODO: Get rid of [DisabledForLargeClusters] tag when issue #56138 is fixed.
 	It("should have session affinity work for LoadBalancer service with ESIPP off [Slow] [DisabledForLargeClusters]", func() {
-		// L4 load balancer affinity `ClientIP` is not supported on AWS ELB.
-		framework.SkipIfProviderIs("aws")
-
 		svc := getServeHostnameService("service")
 		svc.Spec.Type = v1.ServiceTypeLoadBalancer
 		svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyTypeCluster
@@ -1715,9 +1668,6 @@ var _ = SIGDescribe("Services", func() {
 
 	// TODO: Get rid of [DisabledForLargeClusters] tag when issue #56138 is fixed.
 	It("should be able to switch session affinity for LoadBalancer service with ESIPP off [Slow] [DisabledForLargeClusters]", func() {
-		// L4 load balancer affinity `ClientIP` is not supported on AWS ELB.
-		framework.SkipIfProviderIs("aws")
-
 		svc := getServeHostnameService("service")
 		svc.Spec.Type = v1.ServiceTypeLoadBalancer
 		svc.Spec.ExternalTrafficPolicy = v1.ServiceExternalTrafficPolicyTypeCluster
@@ -1981,18 +1931,14 @@ var _ = SIGDescribe("ESIPP [Slow] [DisabledForLargeClusters]", func() {
 		for nodeName, nodeIPs := range endpointNodeMap {
 			By(fmt.Sprintf("checking kube-proxy health check fails on node with endpoint (%s), public IP %s", nodeName, nodeIPs[0]))
 			var body bytes.Buffer
-			pollfn := func() (bool, error) {
-				result := framework.PokeHTTP(nodeIPs[0], healthCheckNodePort, "/healthz", nil)
-				if result.Code == 0 {
-					return true, nil
-				}
-				body.Reset()
-				body.Write(result.Body)
-				return false, nil
-			}
-			if pollErr := wait.PollImmediate(framework.Poll, framework.ServiceTestTimeout, pollfn); pollErr != nil {
-				framework.Failf("Kube-proxy still exposing health check on node %v:%v, after ESIPP was turned off. body %s",
-					nodeName, healthCheckNodePort, body.String())
+			var result bool
+			var err error
+			if pollErr := wait.PollImmediate(framework.Poll, framework.ServiceTestTimeout, func() (bool, error) {
+				result, err = framework.TestReachableHTTPWithContent(nodeIPs[0], healthCheckNodePort, "/healthz", "", &body)
+				return !result, nil
+			}); pollErr != nil {
+				framework.Failf("Kube-proxy still exposing health check on node %v:%v, after ESIPP was turned off. Last err %v, last body %v",
+					nodeName, healthCheckNodePort, err, body.String())
 			}
 		}
 

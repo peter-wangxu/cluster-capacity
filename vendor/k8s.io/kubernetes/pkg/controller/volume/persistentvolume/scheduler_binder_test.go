@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/diff"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
@@ -426,7 +427,6 @@ const (
 )
 
 func makeTestPVC(name, size, node string, pvcBoundState int, pvName, resourceVersion string, className *string) *v1.PersistentVolumeClaim {
-	fs := v1.PersistentVolumeFilesystem
 	pvc := &v1.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PersistentVolumeClaim",
@@ -446,7 +446,6 @@ func makeTestPVC(name, size, node string, pvcBoundState int, pvName, resourceVer
 				},
 			},
 			StorageClassName: className,
-			VolumeMode:       &fs,
 		},
 	}
 
@@ -464,7 +463,6 @@ func makeTestPVC(name, size, node string, pvcBoundState int, pvName, resourceVer
 }
 
 func makeBadPVC() *v1.PersistentVolumeClaim {
-	fs := v1.PersistentVolumeFilesystem
 	return &v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "bad-pvc",
@@ -480,13 +478,11 @@ func makeBadPVC() *v1.PersistentVolumeClaim {
 				},
 			},
 			StorageClassName: &waitClass,
-			VolumeMode:       &fs,
 		},
 	}
 }
 
 func makeTestPV(name, node, capacity, version string, boundToPVC *v1.PersistentVolumeClaim, className string) *v1.PersistentVolume {
-	fs := v1.PersistentVolumeFilesystem
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
@@ -497,10 +493,6 @@ func makeTestPV(name, node, capacity, version string, boundToPVC *v1.PersistentV
 				v1.ResourceName(v1.ResourceStorage): resource.MustParse(capacity),
 			},
 			StorageClassName: className,
-			VolumeMode:       &fs,
-		},
-		Status: v1.PersistentVolumeStatus{
-			Phase: v1.VolumeAvailable,
 		},
 	}
 	if node != "" {
@@ -733,6 +725,10 @@ func TestFindPodVolumesWithoutProvisioning(t *testing.T) {
 		},
 	}
 
+	// Set feature gate
+	utilfeature.DefaultFeatureGate.Set("VolumeScheduling=true")
+	defer utilfeature.DefaultFeatureGate.Set("VolumeScheduling=false")
+
 	testNode := &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node1",
@@ -743,7 +739,7 @@ func TestFindPodVolumesWithoutProvisioning(t *testing.T) {
 	}
 
 	for name, scenario := range scenarios {
-		klog.V(5).Infof("Running test case %q", name)
+		glog.V(5).Infof("Running test case %q", name)
 
 		// Setup
 		testEnv := newTestBinder(t)
@@ -844,6 +840,10 @@ func TestFindPodVolumesWithProvisioning(t *testing.T) {
 			expectedBound:   true,
 		},
 	}
+
+	// Set VolumeScheduling feature gate
+	utilfeature.DefaultFeatureGate.Set("VolumeScheduling=true")
+	defer utilfeature.DefaultFeatureGate.Set("VolumeScheduling=false")
 
 	testNode := &v1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -961,7 +961,7 @@ func TestAssumePodVolumes(t *testing.T) {
 	}
 
 	for name, scenario := range scenarios {
-		klog.V(5).Infof("Running test case %q", name)
+		glog.V(5).Infof("Running test case %q", name)
 
 		// Setup
 		testEnv := newTestBinder(t)
@@ -1091,7 +1091,7 @@ func TestBindAPIUpdate(t *testing.T) {
 		},
 	}
 	for name, scenario := range scenarios {
-		klog.V(4).Infof("Running test case %q", name)
+		glog.V(4).Infof("Running test case %q", name)
 
 		// Setup
 		testEnv := newTestBinder(t)
@@ -1250,7 +1250,7 @@ func TestCheckBindings(t *testing.T) {
 	}
 
 	for name, scenario := range scenarios {
-		klog.V(4).Infof("Running test case %q", name)
+		glog.V(4).Infof("Running test case %q", name)
 
 		// Setup
 		pod := makePod(nil)
@@ -1383,7 +1383,7 @@ func TestBindPodVolumes(t *testing.T) {
 	}
 
 	for name, scenario := range scenarios {
-		klog.V(4).Infof("Running test case %q", name)
+		glog.V(4).Infof("Running test case %q", name)
 
 		// Setup
 		pod := makePod(nil)
@@ -1404,7 +1404,7 @@ func TestBindPodVolumes(t *testing.T) {
 		if scenario.delayFunc != nil {
 			go func() {
 				time.Sleep(5 * time.Second)
-				klog.V(5).Infof("Running delay function")
+				glog.V(5).Infof("Running delay function")
 				scenario.delayFunc(t, testEnv, pod, scenario.binding.pv, scenario.binding.pvc)
 			}()
 		}
@@ -1423,6 +1423,10 @@ func TestBindPodVolumes(t *testing.T) {
 }
 
 func TestFindAssumeVolumes(t *testing.T) {
+	// Set feature gate
+	utilfeature.DefaultFeatureGate.Set("VolumeScheduling=true")
+	defer utilfeature.DefaultFeatureGate.Set("VolumeScheduling=false")
+
 	// Test case
 	podPVCs := []*v1.PersistentVolumeClaim{unboundPVC}
 	pvs := []*v1.PersistentVolume{pvNode2, pvNode1a, pvNode1c}

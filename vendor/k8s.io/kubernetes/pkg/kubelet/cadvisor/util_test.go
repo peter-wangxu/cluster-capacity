@@ -19,15 +19,14 @@ limitations under the License.
 package cadvisor
 
 import (
-	"testing"
-
+	"fmt"
 	info "github.com/google/cadvisor/info/v1"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
-	utilfeaturetesting "k8s.io/apiserver/pkg/util/feature/testing"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	"k8s.io/kubernetes/pkg/features"
+	"testing"
 )
 
 func TestCapacityFromMachineInfo(t *testing.T) {
@@ -43,7 +42,7 @@ func TestCapacityFromMachineInfo(t *testing.T) {
 	}
 
 	// enable the features.HugePages
-	defer utilfeaturetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.HugePages, true)()
+	utilfeature.DefaultFeatureGate.Set(fmt.Sprintf("%s=true", features.HugePages))
 
 	resourceList := CapacityFromMachineInfo(machineInfo)
 

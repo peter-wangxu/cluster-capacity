@@ -25,11 +25,10 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/klog"
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
-	"k8s.io/apiserver/pkg/authentication/authenticator"
 	"k8s.io/apiserver/pkg/registry/generic"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
@@ -81,9 +80,8 @@ type LegacyRESTStorageProvider struct {
 	ServiceNodePortRange utilnet.PortRange
 
 	ServiceAccountIssuer        serviceaccount.TokenGenerator
+	ServiceAccountAPIAudiences  []string
 	ServiceAccountMaxExpiration time.Duration
-
-	APIAudiences authenticator.Audiences
 
 	LoopbackClientConfig *restclient.Config
 }
@@ -100,9 +98,9 @@ func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(restOptionsGetter generi
 	apiGroupInfo := genericapiserver.APIGroupInfo{
 		PrioritizedVersions:          legacyscheme.Scheme.PrioritizedVersionsForGroup(""),
 		VersionedResourcesStorageMap: map[string]map[string]rest.Storage{},
-		Scheme:                       legacyscheme.Scheme,
-		ParameterCodec:               legacyscheme.ParameterCodec,
-		NegotiatedSerializer:         legacyscheme.Codecs,
+		Scheme:               legacyscheme.Scheme,
+		ParameterCodec:       legacyscheme.ParameterCodec,
+		NegotiatedSerializer: legacyscheme.Codecs,
 	}
 
 	var podDisruptionClient policyclient.PodDisruptionBudgetsGetter
@@ -144,7 +142,7 @@ func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(restOptionsGetter generi
 
 	var serviceAccountStorage *serviceaccountstore.REST
 	if c.ServiceAccountIssuer != nil && utilfeature.DefaultFeatureGate.Enabled(features.TokenRequest) {
-		serviceAccountStorage = serviceaccountstore.NewREST(restOptionsGetter, c.ServiceAccountIssuer, c.APIAudiences, c.ServiceAccountMaxExpiration, podStorage.Pod.Store, secretStorage.Store)
+		serviceAccountStorage = serviceaccountstore.NewREST(restOptionsGetter, c.ServiceAccountIssuer, c.ServiceAccountAPIAudiences, c.ServiceAccountMaxExpiration, podStorage.Pod.Store, secretStorage.Store)
 	} else {
 		serviceAccountStorage = serviceaccountstore.NewREST(restOptionsGetter, nil, nil, 0, nil, nil)
 	}
@@ -254,13 +252,13 @@ type componentStatusStorage struct {
 func (s componentStatusStorage) serversToValidate() map[string]*componentstatus.Server {
 	serversToValidate := map[string]*componentstatus.Server{
 		"controller-manager": {Addr: "127.0.0.1", Port: ports.InsecureKubeControllerManagerPort, Path: "/healthz"},
-		"scheduler":          {Addr: "127.0.0.1", Port: ports.InsecureSchedulerPort, Path: "/healthz"},
+		"scheduler":          {Addr: "127.0.0.1", Port: ports.SchedulerPort, Path: "/healthz"},
 	}
 
 	for ix, machine := range s.storageFactory.Backends() {
 		etcdUrl, err := url.Parse(machine.Server)
 		if err != nil {
-			klog.Errorf("Failed to parse etcd url for validation: %v", err)
+			glog.Errorf("Failed to parse etcd url for validation: %v", err)
 			continue
 		}
 		var port int
@@ -269,7 +267,7 @@ func (s componentStatusStorage) serversToValidate() map[string]*componentstatus.
 			var portString string
 			addr, portString, err = net.SplitHostPort(etcdUrl.Host)
 			if err != nil {
-				klog.Errorf("Failed to split host/port: %s (%v)", etcdUrl.Host, err)
+				glog.Errorf("Failed to split host/port: %s (%v)", etcdUrl.Host, err)
 				continue
 			}
 			port, _ = strconv.Atoi(portString)

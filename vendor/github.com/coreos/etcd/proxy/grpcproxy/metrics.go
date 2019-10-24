@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/etcd/etcdserver/api/etcdhttp"
 	"github.com/prometheus/client_golang/prometheus"
-	"go.etcd.io/etcd/etcdserver/api/etcdhttp"
 )
 
 var (

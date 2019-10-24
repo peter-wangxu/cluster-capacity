@@ -48,14 +48,30 @@
 [[projects]]
   name = "github.com/coreos/etcd"
   packages = [
+    "auth/authpb",
     "client",
     "clientv3",
+    "clientv3/balancer",
+    "clientv3/balancer/connectivity",
+    "clientv3/balancer/picker",
+    "clientv3/balancer/resolver/endpoint",
+    "clientv3/credentials",
     "etcdserver/api/v3rpc/rpctypes",
+    "etcdserver/etcdserverpb",
     "mvcc/mvccpb",
-    "pkg/transport"
+    "pkg/logutil",
+    "pkg/pathutil",
+    "pkg/srv",
+    "pkg/systemd",
+    "pkg/tlsutil",
+    "pkg/transport",
+    "pkg/types",
+    "raft",
+    "raft/raftpb",
+    "version"
   ]
-  revision = "3cf2f69b5738fb702ba1a935590f36b52b18979b"
-  version = "v3.4.3"
+  revision = "6d8052314b9e01447d1bb2030bd762e0baf2d433"
+  version = "v3.3.17"
 
 [[projects]]
   name = "github.com/coreos/go-semver"
@@ -185,6 +201,7 @@
   name = "github.com/golang/protobuf"
   packages = [
     "proto",
+    "protoc-gen-go/descriptor",
     "ptypes",
     "ptypes/any",
     "ptypes/duration",
@@ -381,34 +398,6 @@
   version = "v1.0.5"
 
 [[projects]]
-  name = "go.etcd.io/etcd"
-  packages = [
-    "auth/authpb",
-    "clientv3/balancer",
-    "clientv3/balancer/connectivity",
-    "clientv3/balancer/picker",
-    "clientv3/balancer/resolver/endpoint",
-    "clientv3/credentials",
-    "etcdserver/api/v3rpc/rpctypes",
-    "etcdserver/etcdserverpb",
-    "mvcc/mvccpb",
-    "pkg/logutil",
-    "pkg/pathutil",
-    "pkg/srv",
-    "pkg/systemd",
-    "pkg/tlsutil",
-    "pkg/types",
-    "raft",
-    "raft/confchange",
-    "raft/quorum",
-    "raft/raftpb",
-    "raft/tracker",
-    "version"
-  ]
-  revision = "3cf2f69b5738fb702ba1a935590f36b52b18979b"
-  version = "v3.4.3"
-
-[[projects]]
   name = "go.uber.org/atomic"
   packages = ["."]
   revision = "df976f2515e274675050de7b3f42545de80594fd"
@@ -525,7 +514,10 @@
 [[projects]]
   branch = "master"
   name = "google.golang.org/genproto"
-  packages = ["googleapis/rpc/status"]
+  packages = [
+    "googleapis/api/annotations",
+    "googleapis/rpc/status"
+  ]
   revision = "548a555dbc03994223efbaba0090152849259498"
 
 [[projects]]
@@ -1122,6 +1114,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "871aee9eb144b5875343ac8d866ceb3088dc509859b437bcc45f4bcf543175aa"
+  inputs-digest = "efa1b6941d4dfdac4507935c47e67d3cbacc2a0e8ce580fc81cb15d5240b0371"
   solver-name = "gps-cdcl"
   solver-version = 1

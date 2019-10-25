@@ -72,7 +72,7 @@ type ClusterCapacity struct {
 
 	// schedulers
 	schedulers           map[string]*scheduler.Scheduler
-	schedulerConfigs     map[string]*factory.Config
+	schedulerConfigs     map[string]*scheduler.Config
 	defaultSchedulerName string
 	defaultSchedulerConf *schedConfig.CompletedConfig
 	// pod to schedule
@@ -297,7 +297,7 @@ func (c *ClusterCapacity) createScheduler(s *schedConfig.CompletedConfig) (*sche
 		SchedulerName: "cluster-capacity",
 		C:             c,
 	}
-	schedulerConfig.GetBinder = func(pod *v1.Pod) factory.Binder {
+	schedulerConfig.GetBinder = func(pod *v1.Pod) scheduler.Binder {
 		return lbpcu
 	}
 	schedulerConfig.PodConditionUpdater = lbpcu
@@ -367,7 +367,7 @@ func New(completedConf *schedConfig.CompletedConfig, simulatedPod *v1.Pod, maxPo
 	completedConf.Client = cc.externalkubeclient
 
 	cc.schedulers = make(map[string]*scheduler.Scheduler)
-	cc.schedulerConfigs = make(map[string]*factory.Config)
+	cc.schedulerConfigs = make(map[string]*scheduler.Config)
 
 	scheduler, err := cc.createScheduler(completedConf)
 	if err != nil {
@@ -384,7 +384,7 @@ func New(completedConf *schedConfig.CompletedConfig, simulatedPod *v1.Pod, maxPo
 }
 
 // SchedulerConfig creates the scheduler configuration.
-func SchedulerConfigLocal(s *schedConfig.CompletedConfig) (*factory.Config, error) {
+func SchedulerConfigLocal(s *schedConfig.CompletedConfig) (*scheduler.Config, error) {
 	var storageClassInformer storageinformers.StorageClassInformer
 	fakeClient := fake.NewSimpleClientset()
 	fakeInformerFactory := informers.NewSharedInformerFactory(fakeClient, 0)
@@ -432,7 +432,7 @@ func SchedulerConfigLocal(s *schedConfig.CompletedConfig) (*factory.Config, erro
 	})
 
 	source := s.ComponentConfig.AlgorithmSource
-	var config *factory.Config
+	var config *scheduler.Config
 	switch {
 	case source.Provider != nil:
 		// Create the config from a named algorithm provider.

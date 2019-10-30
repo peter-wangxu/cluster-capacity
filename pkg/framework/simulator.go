@@ -18,6 +18,7 @@ package framework
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -155,6 +156,7 @@ func (c *ClusterCapacity) SyncWithStore(resourceStore store.ResourceStore) error
 }
 
 func (c *ClusterCapacity) Bind(binding *v1.Binding, schedulerName string) error {
+	glog.V(3).Infof("binding for scheduler %q: %v", schedulerName, binding)
 	// run the pod through strategy
 	key := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: binding.Name, Namespace: binding.Namespace},
@@ -207,6 +209,8 @@ func (c *ClusterCapacity) Close() {
 }
 
 func (c *ClusterCapacity) Update(pod *v1.Pod, podCondition *v1.PodCondition, schedulerName string) error {
+	glog.V(3).Infof("updating pod %q with condition %v", pod.Name, podCondition)
+
 	stop := podCondition.Type == v1.PodScheduled && podCondition.Status == v1.ConditionFalse && podCondition.Reason == "Unschedulable"
 
 	// Only for pending pods provisioned by cluster-capacity

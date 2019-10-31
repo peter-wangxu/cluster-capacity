@@ -91,17 +91,19 @@ type Requirements struct {
 }
 
 type ClusterCapacityReviewScheduleFailReason struct {
-	FailType    string
-	FailMessage string
+	FailType       string
+	FailMessage    string
+	FailMessageAll string
 }
 
-func getMainFailReason(message string) *ClusterCapacityReviewScheduleFailReason {
+func getMainFailReason(message string, messageAll string) *ClusterCapacityReviewScheduleFailReason {
 	slicedMessage := strings.Split(message, "\n")
 	colon := strings.Index(slicedMessage[0], ":")
 
 	fail := &ClusterCapacityReviewScheduleFailReason{
-		FailType:    slicedMessage[0][:colon],
-		FailMessage: strings.Trim(slicedMessage[0][colon+1:], " "),
+		FailType:       slicedMessage[0][:colon],
+		FailMessage:    strings.Trim(slicedMessage[0][colon+1:], " "),
+		FailMessageAll: messageAll,
 	}
 	return fail
 }
@@ -210,7 +212,7 @@ func getReviewStatus(pods []*v1.Pod, status Status) ClusterCapacityReviewStatus 
 	return ClusterCapacityReviewStatus{
 		CreationTimestamp: time.Now(),
 		Replicas:          int32(len(status.Pods)),
-		FailReason:        getMainFailReason(status.StopReason),
+		FailReason:        getMainFailReason(status.StopReason, status.StopReasonAll),
 		Pods:              parsePodsReview(pods, status),
 	}
 }
@@ -260,6 +262,8 @@ func clusterCapacityReviewPrettyPrint(r *ClusterCapacityReview, verbose bool) {
 
 	if verbose {
 		fmt.Printf("\nTermination reason: %v: %v\n", r.Status.FailReason.FailType, r.Status.FailReason.FailMessage)
+
+		fmt.Printf("\nFailure for each node:\n%s", r.Status.FailReason.FailMessageAll)
 	}
 
 	if verbose && r.Status.Replicas > 0 {

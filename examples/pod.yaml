@@ -5,6 +5,7 @@ metadata:
   labels:
     app: guestbook
     tier: frontend
+  uid : 65b9cb96-fadf-11e9-ab76-0cc47a750aba
 spec:
   containers:
   - name: php-redis
@@ -19,3 +20,4 @@ spec:
         memory: 100Mi
   restartPolicy: "OnFailure"
   dnsPolicy: "Default"
+  schedulerName: default-scheduler

@@ -19,8 +19,10 @@ package framework
 import (
 	"fmt"
 	"github.com/golang/glog"
+	"github.com/google/uuid"
 	"io/ioutil"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,6 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
+	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/informers"
@@ -37,9 +40,9 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	kubeschedulerconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
+	schedConfig "k8s.io/kubernetes/cmd/kube-scheduler/app/config"
 	//"k8s.io/kubernetes/pkg/controller"
 	"k8s.io/kubernetes/pkg/features"
-	schedConfig "k8s.io/kubernetes/cmd/kube-scheduler/app/config"
 	"k8s.io/kubernetes/pkg/scheduler"
 	schedulerapi "k8s.io/kubernetes/pkg/scheduler/api"
 	latestschedulerapi "k8s.io/kubernetes/pkg/scheduler/api/latest"
@@ -97,8 +100,9 @@ type ClusterCapacity struct {
 
 // capture all scheduled pods with reason why the analysis could not continue
 type Status struct {
-	Pods       []*v1.Pod
-	StopReason string
+	Pods          []*v1.Pod
+	StopReason    string
+	StopReasonAll string
 }
 
 func (c *ClusterCapacity) Report() *ClusterCapacityReview {
@@ -230,6 +234,7 @@ func (c *ClusterCapacity) Update(pod *v1.Pod, podCondition *v1.PodCondition, sch
 func (c *ClusterCapacity) nextPod() error {
 	pod := v1.Pod{}
 	pod = *c.simulatedPod.DeepCopy()
+	pod.UID = apitypes.UID(uuid.New().String()) // UID is used in scheduler cache, need to be uniquely set
 	// reset any node designation set
 	pod.Spec.NodeName = ""
 	// use simulated pod name with an index to construct the name
@@ -311,13 +316,40 @@ func (c *ClusterCapacity) createScheduler(s *schedConfig.CompletedConfig) (*sche
 	wrappedErrorFn := func(pod *v1.Pod, err error) {
 		if _, ok := err.(*core.FitError); !ok {
 			errorFn(pod, err)
+
 		}
+		// hook and log the fit error
+		c.logError(pod, err)
 	}
 	schedulerConfig.Error = wrappedErrorFn
 	// Create the scheduler.
 	scheduler := scheduler.NewFromConfig(schedulerConfig)
 
 	return scheduler, nil
+}
+
+// For scheduler upper than 1.6, the message of pod condition no long contains
+// detailed info of node failure, need this hook to log them then
+func (c *ClusterCapacity) logError(pod *v1.Pod, err error) {
+	if fitError, ok := err.(*core.FitError); ok {
+
+		nodePredicateFailureMap := fitError.FailedPredicates
+		nodeReasons := map[string][]string{}
+		for nodeName, predicates := range nodePredicateFailureMap {
+			for _, pred := range predicates {
+				if _, ok := nodeReasons[nodeName]; !ok {
+					nodeReasons[nodeName] = []string{}
+				}
+				nodeReasons[nodeName] = append(nodeReasons[nodeName], pred.GetReason())
+			}
+		}
+		c.status.Pods = append(c.status.Pods, pod)
+		//c.status.StopReason = nodeReasons no needed, the Update(...) should take care of this
+		for nodeName, reasons := range nodeReasons {
+			c.status.StopReasonAll += fmt.Sprintf("%s: %s\n", nodeName, strings.Join(reasons, ", "))
+
+		}
+	}
 }
 
 // TODO(avesh): enable when support for multiple schedulers is added.

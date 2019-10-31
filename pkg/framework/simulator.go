@@ -343,7 +343,7 @@ func (c *ClusterCapacity) logError(pod *v1.Pod, err error) {
 				nodeReasons[nodeName] = append(nodeReasons[nodeName], pred.GetReason())
 			}
 		}
-		c.status.Pods = append(c.status.Pods, pod)
+		//c.status.Pods = append(c.status.Pods, pod)
 		//c.status.StopReason = nodeReasons no needed, the Update(...) should take care of this
 		for nodeName, reasons := range nodeReasons {
 			c.status.StopReasonAll += fmt.Sprintf("%s: %s\n", nodeName, strings.Join(reasons, ", "))

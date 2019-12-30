@@ -35,6 +35,7 @@ import (
 
 type ClusterCapacityReview struct {
 	metav1.TypeMeta
+	metav1.ObjectMeta
 	Spec   ClusterCapacityReviewSpec
 	Status ClusterCapacityReviewStatus
 }
@@ -201,6 +202,12 @@ func deepCopyPods(in []*v1.Pod, out []v1.Pod) {
 		out[i] = *pod.DeepCopy()
 	}
 }
+func getPodMeta(pods []*v1.Pod) metav1.ObjectMeta {
+	if len(pods) >= 0 {
+		return pods[0].ObjectMeta
+	}
+	return metav1.ObjectMeta{}
+}
 
 func getReviewSpec(podTemplates []*v1.Pod) ClusterCapacityReviewSpec {
 
@@ -223,8 +230,9 @@ func getReviewStatus(pods []*v1.Pod, status Status) ClusterCapacityReviewStatus 
 
 func GetReport(pods []*v1.Pod, status Status) *ClusterCapacityReview {
 	return &ClusterCapacityReview{
-		Spec:   getReviewSpec(pods),
-		Status: getReviewStatus(pods, status),
+		ObjectMeta: getPodMeta(pods),
+		Spec:       getReviewSpec(pods),
+		Status:     getReviewStatus(pods, status),
 	}
 }
 

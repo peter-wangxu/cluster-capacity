@@ -39,6 +39,7 @@ func (e *Recorder) Event(object runtime.Object, eventtype, reason, message strin
 		e.Events <- Event{eventtype, reason, message}
 	}
 }
+// Eventf(regarding runtime.Object, related runtime.Object, eventtype, reason, action, note string, args ...interface{})
 
 func (e *Recorder) Eventf(object runtime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
 	if e.Events != nil {
